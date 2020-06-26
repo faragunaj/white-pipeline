@@ -21,26 +21,28 @@ from sklearn.preprocessing import StandardScaler
 class Experiment:
     """Store entire experiment data.
 
-	Attributes:
-		experimentalReplicates (list of ExperimentalReplicate): Experimental replicates
-		combinedReplicates (list of DataFrame): Averaged peptide values across experimental replicates based on user-provided thresholds, independently for each cell line
-		combinedReplicatesData (list of DataFrame): Averaged peptide values, as well as n and std dev metrics
-		separatedCombinedReplicatesData (list of DataFrame): separate peptide values for each replicate provided the peptide meets n and std cutoffs
+    Attributes:
+        experimentalReplicates (list of ExperimentalReplicate): Experimental replicates
+        combinedReplicates (list of DataFrame): Averaged peptide values across experimental replicates based on user-provided thresholds, independently for each cell line
+        combinedReplicatesData (list of DataFrame): Averaged peptide values, as well as n and std dev metrics
+        separatedCombinedReplicatesData (list of DataFrame): separate peptide values for each replicate provided the peptide meets n and std cutoffs
         experimentFullIntersection (DataFrame): Inner pd.merge() of combined replicate data
-		experimentReferenceIntersections (list of DataFrame): Separate inner pd.merge() for each cell line of combined replicate data to reference
+        experimentReferenceIntersections (list of DataFrame): Separate inner pd.merge() for each cell line of combined replicate data to reference
         experimentSeparatedFullIntersection (DataFrame): Inner pd.merge() of separated combined replicate data
         experimentSeparatedReferenceIntersections (list of DataFrame): Separate inner pd.merge() for each cell line of separated combined replicate data to reference
 
-		cellLines (list of int or str): Names of cell lines
-		timePoints (list of int): Time points
-		secondTimePoints (list of int): Time points in seconds
-		caseInsensitive (bool): Case insensitivity of overall experiment, default True and only False if all replicates are False
-		names (list of str): Names of experimental replicates
+        cellLines (list of int or str): Names of cell lines
+        timePoints (list of int): Time points
+        secondTimePoints (list of int): Time points in seconds
+        caseInsensitive (bool): Case insensitivity of overall experiment, default True and only False if all replicates are False
+        names (list of str): Names of experimental replicates
+        colors (list of str): default colors to use for plotting cell lines
+        fileLocation (str): default file location to save plots to
 
-		n_cutoff (int): Minimum number of replicates peptide must be found in to be included in combinedReplicates
-		std_cutoff (int): Maximum std dev for abundance of peptide across all time points to be included in combinedReplicates
+        n_cutoff (int): Minimum number of replicates peptide must be found in to be included in combinedReplicates
+        std_cutoff (int): Maximum std dev for abundance of peptide across all time points to be included in combinedReplicates
 
-	"""
+    """
     experimentalReplicates = []
     combinedReplicates = None
     combinedReplicatesData = None
@@ -58,29 +60,33 @@ class Experiment:
     caseInsensitive = True
     names = []
     colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:olive', 'tab:cyan']
+    fileLocation = ''
 
     n_cutoff = 0
     std_cutoff = 0
 
-    def __init__(self, replicates, cell_lines=None, time_points=None, second_time_points=None, case_insensitive=None, names=None, colors = None):
+    def __init__(self, replicates, cell_lines=None, time_points=None, second_time_points=None, case_insensitive=None, names=None, colors = None, fileLocation = ''):
         """Initializes Experiment from file locations or existing ExperimentalReplicate.
 
-		Notes:
-			Accepts several replicate formats
-				List of str: file locations for single experimental replicate
-				list of list of str: file locations for multiple experimental replicates
-				ExperimentalReplicate: single ExperimentalReplicate
-				list of ExperimentalReplicate: multiple ExperimentalReplicate
-			Creates new ExperimentalReplicate objects for each replicate
+        Notes:
+            Accepts several replicate formats
+                List of str: file locations for single experimental replicate
+                list of list of str: file locations for multiple experimental replicates
+                ExperimentalReplicate: single ExperimentalReplicate
+                list of ExperimentalReplicate: multiple ExperimentalReplicate
+            Creates new ExperimentalReplicate objects for each replicate
 
-		Args:
-			replicates (list of str, list of list of str, ExperimentalReplicate, list of ExperimentalReplicate): replicates to be stored in Experiment
-			cell_lines (list of int): cell line identifiers
-			time_points (list of int): time points
-			second_time_points (list of int): time points in seconds
-			case_insensitive (bool): case-insensitivity of peptide-phosphosite labels for comparisons 
+        Args:
+            replicates (list of str, list of list of str, ExperimentalReplicate, list of ExperimentalReplicate): replicates to be stored in Experiment
+            cell_lines (list of int): cell line identifiers
+            time_points (list of int): time points
+            second_time_points (list of int): time points in seconds
+            case_insensitive (bool): case-insensitivity of peptide-phosphosite labels for comparisons 
+            names (list of str): names of replicates
+            colors (list of str): colors to use for cell lines
+            fileLocation (str): file location to save to
 
-		"""
+        """
 
         #replicates is a single ExperimentalReplicate object
         if type(replicates) == ExperimentalReplicate:
@@ -89,6 +95,7 @@ class Experiment:
             self.timePoints = replicates.timePoints
             self.secondTimePoints = replicates.secondTimePoints
             self.colors = replicates.colors
+            self.fileLocation = fileLocation
             if case_insensitive != None:
                 self.caseInsensitive = case_insensitive
             else:
@@ -101,6 +108,7 @@ class Experiment:
             self.timePoints = replicates[0].timePoints
             self.secondTimePoints = replicates[0].secondTimePoints
             self.colors = replicates.colors
+            self.fileLocation = fileLocation
             #if overall experimental case insensitivity is proviuded, makes experimental replicates with it
             if case_insensitive != None:
                 self.caseInsensitive = case_insensitive
@@ -129,15 +137,16 @@ class Experiment:
 
             #if overall experimental case insensitivity is provided, makes experimental replicates with it
             if case_insensitive != None:
-                self.experimentalReplicates = [ExperimentalReplicate(replicates, cell_lines, time_points, second_time_points, case_insensitive, names, self.colors)]
+                self.experimentalReplicates = [ExperimentalReplicate(replicates, cell_lines, time_points, second_time_points, case_insensitive, names, self.colors, fileLocation)]
                 self.caseInsensitive = case_insensitive
             #defaults to case insensitivte
             else:
-                self.experimentalReplicates = [ExperimentalReplicate(replicates, cell_lines, time_points, second_time_points, replicate_name=names, colors = self.colors)]
+                self.experimentalReplicates = [ExperimentalReplicate(replicates, cell_lines, time_points, second_time_points, replicate_name=names, colors = self.colors, fileLocation = fileLocation)]
                 self.caseInsensitive = True
             self.cellLines = cell_lines
             self.timePoints = time_points
             self.secondTimePoints = second_time_points
+            self.fileLocation = fileLocation
 
         ##replicates is a list of lists of locations that need to be used to create a list of multiple ExperimentalReplicate objects
         elif type(replicates[0]) == list:
@@ -156,14 +165,15 @@ class Experiment:
                 self.colors.append('tab:gray')
 
             if case_insensitive != None:
-                self.experimentalReplicates = [ExperimentalReplicate(replicates[i], cell_lines, time_points, second_time_points, case_insensitive, names[i], self.colors) for i in range(len(replicates))]
+                self.experimentalReplicates = [ExperimentalReplicate(replicates[i], cell_lines, time_points, second_time_points, case_insensitive, names[i], self.colors, fileLocation) for i in range(len(replicates))]
                 self.caseInsensitive = case_insensitive
             else:
-                self.experimentalReplicates = [ExperimentalReplicate(replicates[i], cell_lines, time_points, second_time_points, replicate_name=names[i], colors = self.colors) for i in range(len(replicates))]
+                self.experimentalReplicates = [ExperimentalReplicate(replicates[i], cell_lines, time_points, second_time_points, replicate_name=names[i], colors = self.colors, fileLocation = fileLocation) for i in range(len(replicates))]
                 self.caseInsensitive = True
             self.cellLines = cell_lines
             self.timePoints = time_points
             self.secondTimePoints = second_time_points
+            self.fileLocation = fileLocation
 
         else:
             raise TypeError
@@ -176,7 +186,7 @@ class Experiment:
     def __str__(self):
         """Human readable string describing experiment.
 
-		"""
+        """
         if self.combinedReplicates:
             printout = "\nCOMBINED MS REPLICATES WITH n = " + str(self.n_cutoff) + " and std dev = " + str(self.std_cutoff) + "\nCell Lines: " + str(self.cellLines).strip("[]") + "\nSize: " + str([self.combinedReplicates[i].shape[0] for i in range(len(self.combinedReplicates))]).strip("[]") + "\nIntersection Size: " + str(self.experimentFullIntersection.shape[0]) + "\n"
             printout += "\n"
@@ -192,17 +202,17 @@ class Experiment:
     def __iter__(self):
         """Provides support for iterating over experimental replicates.
 
-		Examples:
-			[each for each in experiment] --> each replicate in experiment
+        Examples:
+            [each for each in experiment] --> each replicate in experiment
 
-		"""
+        """
         self.n = 0
         return self
 
     def __next__(self):
         """Provides support for iterating over experimental replicates.
 
-		"""
+        """
         if self.n < len(self.experimentalReplicates):
             self.n += 1
             return self.experimentalReplicates[self.n - 1]
@@ -212,24 +222,24 @@ class Experiment:
     def __getitem__(self, index):
         """Provides support for indexing experiment for replicates.
 
-		Examples:
-			experiment[0]
+        Examples:
+            experiment[0]
 
-		"""
+        """
         return self.experimentalReplicates[index]
 
     def save(self, name, replicates=False):
         """Saves contents of Experiment to multiple excel files.
 
-		Args:
-			name (str): location and common name of all files
-			replicates (bool): whether to also save replicates
+        Args:
+            name (str): location and common name of all files
+            replicates (bool): whether to also save replicates
 
-		Notes:
-			Experiment saves as "name.xlsx."
-			Replicates save as "name replicateName.xlsx"
+        Notes:
+            Experiment saves as "name.xlsx."
+            Replicates save as "name replicateName.xlsx"
 
-		"""
+        """
 
         #saves replicates
         if replicates:
@@ -281,7 +291,7 @@ class Experiment:
         Args:
             data (list of dfs): data to combine, usually experiment's combined replicate data
 
-		"""
+        """
         # try:
         return modules.fullIntersection(data, self.caseInsensitive)
         # except TypeError:
@@ -291,11 +301,11 @@ class Experiment:
     def referenceIntersections(self, data, combine=False,):
         """Executes a separate inner pd.merge() to reference for each cell line on a list of dfs.
 
-		Args:
+        Args:
             data (list of dfs): data to combine, usually combined replicate data
-			combine (bool): Whether to include reference data at the end of returned list of DataFrames comparing others to reference
+            combine (bool): Whether to include reference data at the end of returned list of DataFrames comparing others to reference
 
-		"""
+        """
         try:
             return modules.separateIntersections(data[:-1], data[-1],self.caseInsensitive, combine)
         except TypeError:
@@ -305,15 +315,15 @@ class Experiment:
     def addTechnicalReplicate(self, replicate, i):
         """Adds a technical replicate to the ith experimental replicate (Python is 0 indexed).
 
-		Notes:
-			Technical replicate is added via outer pd.merge, so all peptides in at least the experimenal or technical replicate are included.
-			Overlapping peptide abundances are averaged. Ranges are not tracked because they are not considered separate replicates.
+        Notes:
+            Technical replicate is added via outer pd.merge, so all peptides in at least the experimenal or technical replicate are included.
+            Overlapping peptide abundances are averaged. Ranges are not tracked because they are not considered separate replicates.
 
-		Args:
-			replicate (list of str, ExperimentalReplicate): List of locations to be imported, or ExperimentalReplicate object to be used as technical replicate
-			i (int): Experimental replicate to add technical replicate to
+        Args:
+            replicate (list of str, ExperimentalReplicate): List of locations to be imported, or ExperimentalReplicate object to be used as technical replicate
+            i (int): Experimental replicate to add technical replicate to
 
-		"""
+        """
         iReplicate = self.experimentalReplicates[i]
         technicalReplicate = ExperimentalReplicate(replicate, iReplicate.cellLines, iReplicate.timePoints, iReplicate.caseInsensitive)
         iReplicate.addTechnicalReplicate(technicalReplicate)
@@ -334,17 +344,17 @@ class Experiment:
     def combineReplicates(self, n_cutoff=0, std_cutoff=float('inf')):
         """Combines experimental replicates into a list of dfs and performs fullIntersection and referenceIntersections.
 
-		Args:
-			n_cutoff (int): minimum number of replicates a peptide shows up in to be included
-			std_cutoff (int): maximum std dev across replicates for a peptide to be included
+        Args:
+            n_cutoff (int): minimum number of replicates a peptide shows up in to be included
+            std_cutoff (int): maximum std dev across replicates for a peptide to be included
 
         Examples:
             combineReplicates(n_cutoff=2, std_cutoff=0.5)
 
-		Notes:
-			Uses modules.combineReplicates().
+        Notes:
+            Uses modules.combineReplicates().
 
-		"""
+        """
         self.n_cutoff = n_cutoff
         self.std_cutoff = std_cutoff
         #trivial case with 1 replicate
@@ -404,24 +414,24 @@ class Experiment:
     def log2Comparison(self, keyword=None, threshold=0, normalizeToBasal=False, tail="both", title=None):
         """Compares and graphs percentage of peptides in individual others that show a specified log2 fold difference compared to reference.
 
-		Args:
-			keyword (str): optional keyword to include to limit peptides considered in comparison
-			threshold (str): log2 cutoff threshold
-			normalizeToBasal (bool): whether to subtract all others time points by each others basal (0), and subtract all reference time points by reference basal (0)
-			tail (str): tail of threshold to consider
-				"both": peptides with log2 >= threshold and log2 <= -1*threshold
-				"lower": peptides with log2 <= -1*threshold
-				"upper": peptides with log2 >= threshold
+        Args:
+            keyword (str): optional keyword to include to limit peptides considered in comparison
+            threshold (str): log2 cutoff threshold
+            normalizeToBasal (bool): whether to subtract all others time points by each others basal (0), and subtract all reference time points by reference basal (0)
+            tail (str): tail of threshold to consider
+                "both": peptides with log2 >= threshold and log2 <= -1*threshold
+                "lower": peptides with log2 <= -1*threshold
+                "upper": peptides with log2 >= threshold
 
-		Notes:
-			Each others is separately overlapped with reference when performing comparison to preserve maximum data, so not all peptides are expressed across all points.
+        Notes:
+            Each others is separately overlapped with reference when performing comparison to preserve maximum data, so not all peptides are expressed across all points.
 
-		Returns:
-			comparison (list of list of df): peptides meeting threshold as a list of replicates, each of which is a list of cell line DataFrames
-			originalSizes (list of list of int): overlapping peptides for each others to reference comparison, useful to see how many peptides each percentage represents
+        Returns:
+            comparison (list of list of df): peptides meeting threshold as a list of replicates, each of which is a list of cell line DataFrames
+            originalSizes (list of list of int): overlapping peptides for each others to reference comparison, useful to see how many peptides each percentage represents
 
 
-		"""
+        """
         comparison = []
         originalSizes = []
 
@@ -437,27 +447,27 @@ class Experiment:
     def peptidePicker(self, threshold=0, normalizeToBasal=False, tail="both", trajectory=None):
         """Selects peptides that meet a given trajectory compared to a threshold across individual cell lines.
 
-		Args:
-			threshold (str): log2 cutoff threshold
-			normalizeToBasal (bool): whether to subtract all others time points by each others basal (0), and subtract all reference time points by reference basal (0)
-			tail (str): tail of threshold to consider
-				"both": peptides with log2 >= threshold and log2 <= -1*threshold
-				"lower": peptides with log2 <= -1*threshold
-				"upper": peptides with log2 >= threshold
-			trajectory (list of bool/str): trajectory of peptides compared to threshold, default value is [True, True, True, True, True]
-				True: peptide must meet threshold at this time point to be included
-				False: peptide cannot meet threshold at this time point to be included
-				"All": time point does not enforce a threshold (all peptides pass this time point)
+        Args:
+            threshold (str): log2 cutoff threshold
+            normalizeToBasal (bool): whether to subtract all others time points by each others basal (0), and subtract all reference time points by reference basal (0)
+            tail (str): tail of threshold to consider
+                "both": peptides with log2 >= threshold and log2 <= -1*threshold
+                "lower": peptides with log2 <= -1*threshold
+                "upper": peptides with log2 >= threshold
+            trajectory (list of bool/str): trajectory of peptides compared to threshold, default value is [True, True, True, True, True]
+                True: peptide must meet threshold at this time point to be included
+                False: peptide cannot meet threshold at this time point to be included
+                "All": time point does not enforce a threshold (all peptides pass this time point)
 
-		Notes:
-			Each others is separately overlapped with reference when performing comparison to preserve maximum data, so not all peptides are expressed across all points.
+        Notes:
+            Each others is separately overlapped with reference when performing comparison to preserve maximum data, so not all peptides are expressed across all points.
 
-		Examples:
-			exp.peptidePicker(threshold = 1.5, tail = 'upper', trajectory = ["All", "All", False, False, True])
-				Finds peptides such that peptide_1_minute < 1.5, peptide_2_minute < 1.5, and peptide_5_minute.
-				0 and 30 second time points do not enforce threshold.
+        Examples:
+            exp.peptidePicker(threshold = 1.5, tail = 'upper', trajectory = ["All", "All", False, False, True])
+                Finds peptides such that peptide_1_minute < 1.5, peptide_2_minute < 1.5, and peptide_5_minute.
+                0 and 30 second time points do not enforce threshold.
 
-		"""
+        """
         comparison = []
         originalSizes = []
 
@@ -482,6 +492,8 @@ class Experiment:
             normalization (str): normalization scheme to use, default refbasal but can use refbasal, reftime, ownbasal
 
         """
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         try:
             modules.heatmap(self.experimentFullIntersection.copy(), self.cellLines, self.timePoints, name, display, fileLocation, fullscreen, normalization)
         except AttributeError:
@@ -498,6 +510,8 @@ class Experiment:
             normalization (str): normalization scheme to use, default refbasal but can use refbasal, reftime, ownbasal
 
         """
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         try:
             modules.heatmapToReference(self.experimentReferenceIntersections.copy(), self.cellLines, self.timePoints, name, display, fileLocation, fullscreen, normalization)
         except AttributeError:
@@ -517,6 +531,8 @@ class Experiment:
 
 
         """
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         try:
             return modules.pcaToReference(self.experimentReferenceIntersections.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, fileLocation, fullscreen, self.colors)
         except AttributeError:
@@ -532,6 +548,8 @@ class Experiment:
             fullscreen (bool): whether to display graph fullscreen
 
         """
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         try:
             return modules.pca(self.experimentFullIntersection.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, fileLocation, fullscreen, self.colors)
         except AttributeError:
@@ -546,6 +564,8 @@ class Experiment:
             fileLocation (str): file location to save to
             fullscreen (bool): whether to display graph fullscreen       
         '''
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         pcas = self.pcaToReference()
         print("TODO")
 
@@ -567,6 +587,8 @@ class Experiment:
                 Does not display any graphs and saves Excel file to the directory above the current one as "JOE's volcanoe values.xlsx"
 
         """
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         test = modules.volcano(self.experimentSeparatedReferenceIntersections.copy(), len(self.experimentalReplicates), self.timePoints, self.cellLines, cutoff, enrichment, label, name, display, saveFile, saveFig, fileLocation, colors)
         return test
 
@@ -595,6 +617,8 @@ class Experiment:
             For trajectory plots, the shaded regions are 95% confidence intervals and the solid line is the mean.
             ...
         '''
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         modules.correlationToReference(self.experimentReferenceIntersections.copy(), self.timePoints, self.secondTimePoints, self.cellLines, name, display, saveFile, saveFig, fileLocation, normalization)
         
     def correlationToSelf(self, name="", display=True, saveFile = False, saveFig = False, fileLocation = "", normalization = 'ownbasal'):
@@ -622,6 +646,8 @@ class Experiment:
             For trajectory plots, the shaded regions are 95% confidence intervals and the solid line is the mean.
             ...
         '''
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         modules.correlationToSelf(self.combinedReplicates.copy(), self.timePoints, self.secondTimePoints, self.cellLines, name, display, saveFile, saveFig, fileLocation, normalization)
 
     def groupPlot(self, key = None, relativeToReference = False, display = True, name = '', fileLocation = ''):
@@ -632,6 +658,8 @@ class Experiment:
             relativeToFerence (bool): whether to normalize to reference phenotype or not
 
         '''
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         if not key:
             if len(self.phenotypicMeasurements) == 1:
                 key = list(self.phenotypicMeasurements.keys())[0]
@@ -659,6 +687,8 @@ class Experiment:
             Useful for debugging whether one phenotypic measurement should be excluded.
 
         '''
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         if not key:
             if len(self.phenotypicMeasurements) == 1:
                 key = list(self.phenotypicMeasurements.keys())[0]
@@ -677,21 +707,22 @@ class Experiment:
 class ExperimentalReplicate:
     """Store entire experiment data.
 
-	Attributes:
-		cellData (list of df): cell data separated into different cell lines
-		cellLines (list of int or str): Names of cell lines
-		timePoints (list of int): Time points
-		secondTimePoints (list of int): Time points in seconds
-		caseInsensitive (bool): Case insensitivity of overall experiment, default True and only False if all replicates are False
-		replicateName (str): Name of 
+    Attributes:
+        cellData (list of df): cell data separated into different cell lines
+        cellLines (list of int or str): Names of cell lines
+        timePoints (list of int): Time points
+        secondTimePoints (list of int): Time points in seconds
+        caseInsensitive (bool): Case insensitivity of overall experiment, default True and only False if all replicates are False
+        replicateName (str): Name of replicate
+        fileLocation (str): Default file location for saving plots
 
-		cellFullIntersection (DataFrame): Inner pd.merge() of all cell lines
-		cellReferenceIntersections (list of DataFrame): Separate inner pd.merge() for each cell line to reference
+        cellFullIntersection (DataFrame): Inner pd.merge() of all cell lines
+        cellReferenceIntersections (list of DataFrame): Separate inner pd.merge() for each cell line to reference
 
-	Notes:
-		Last cell line in cellLines is assumed to be reference!
+    Notes:
+        Last cell line in cellLines is assumed to be reference!
 
-	"""
+    """
     replicateName = ""
 
     cellData = []
@@ -702,8 +733,9 @@ class ExperimentalReplicate:
     timePoints = []
     secondTimePoints = []
     caseInsensitive = True
+    fileLocation = ''
 
-    def __init__(self, locations, cell_lines=None, time_points=None, second_time_points=None, case_insensitive=True, replicate_name=None, colors = None):
+    def __init__(self, locations, cell_lines=None, time_points=None, second_time_points=None, case_insensitive=True, replicate_name=None, colors = None, fileLocation = ''):
         #existing ExperimentalReplicate
         if type(locations) == ExperimentalReplicate:
             self.cellData = locations.cellData
@@ -713,6 +745,7 @@ class ExperimentalReplicate:
             self.caseInsensitive = locations.caseInsensitive
             self.replicateName = locations.replicateName
             self.colors = colors
+            self.fileLocation = fileLocation
 
             self.cellFullIntersection = locations.cellFullIntersection
             self.cellReferenceIntersections = locations.cellReferenceIntersections
@@ -724,6 +757,7 @@ class ExperimentalReplicate:
             self.secondTimePoints = second_time_points
             self.caseInsensitive = case_insensitive
             self.colors = colors
+            self.fileLocation = fileLocation
             if replicate_name:
                 self.replicateName = replicate_name
 
@@ -739,23 +773,23 @@ class ExperimentalReplicate:
     def __str__(self):
         """Human readable string describing replicate.
 
-		"""
+        """
         return "{} MS REPLICATE\nCell Lines: {}\nSize: {}\nIntersection Size: {}\n".format(self.replicateName, str(self.cellLines).strip("[]"), str([self.cellData[i].shape[0] for i in range(len(self.cellData))]).strip("[]"), self.cellFullIntersection.shape[0])
 
     def __iter__(self):
         """Provides support for iterating over replicate.
 
-		Examples:
-			[each for each in exp[0]] --> each cell line in replicate
+        Examples:
+            [each for each in exp[0]] --> each cell line in replicate
 
-		"""
+        """
         self.n = 0
         return self
 
     def __next__(self):
         """Provides support for iterating over replicate.
 
-		"""
+        """
         if self.n < len(self.cellData):
             self.n += 1
             return self.cellData[self.n - 1]
@@ -765,22 +799,22 @@ class ExperimentalReplicate:
     def __getitem__(self, index):
         """Provides support for indexing experiment for replicates.
 
-		Examples:
-			experiment[0]
+        Examples:
+            experiment[0]
 
-		"""
+        """
         return self.cellData[index]
 
     def save(self, passedWriter, replicates=False):
         """Saves contents of replicate to one excel file.
 
-		Args:
-			passedWriter (pd.ExcelWriter): specifies file destination
+        Args:
+            passedWriter (pd.ExcelWriter): specifies file destination
 
-		Notes:
-			Each cell line, as well as cellReferenceIntersections and cellFullIntersection, get saved to separate tabs.
+        Notes:
+            Each cell line, as well as cellReferenceIntersections and cellFullIntersection, get saved to separate tabs.
 
-		"""
+        """
 
         #saves replicates
         with passedWriter as writer:
@@ -818,29 +852,29 @@ class ExperimentalReplicate:
     def fullIntersection(self):
         """Executes an inner pd.merge() on all of experiment's combined replicate data.
 
-		"""
+        """
         self.cellFullIntersection = modules.fullIntersection(self.cellData, self.caseInsensitive)
 
     def referenceIntersections(self, combine=False):
         """Executes a separate inner pd.merge() to reference for each cell line of combined replicate data.
 
-		Args:
-			combine (bool): Whether to include reference data at the end of returned list of DataFrames comparing others to reference.
+        Args:
+            combine (bool): Whether to include reference data at the end of returned list of DataFrames comparing others to reference.
 
-		"""
+        """
         self.cellReferenceIntersections = modules.separateIntersections(self.cellData[:-1], self.cellData[-1], self.caseInsensitive, combine)
 
     def addTechnicalReplicate(self, technical_replicate):
         """Adds a technical replicate to the ith experimental replicate.
 
-		Notes:
-			Technical replicate is added via outer pd.merge, so all peptides in at least the experimenal or technical replicate are included.
-			Overlapping peptide abundances are averaged. Ranges are not tracked because they are not considered separate replicates.
+        Notes:
+            Technical replicate is added via outer pd.merge, so all peptides in at least the experimenal or technical replicate are included.
+            Overlapping peptide abundances are averaged. Ranges are not tracked because they are not considered separate replicates.
 
-		Args:
-			technical_replicate (ExperimentalReplicate): ExperimentalReplicate object to be used as technical replicate
+        Args:
+            technical_replicate (ExperimentalReplicate): ExperimentalReplicate object to be used as technical replicate
 
-		"""
+        """
         technicalReplicate = ExperimentalReplicate(technical_replicate)
 
         for i in range(len(self.cellData)):
@@ -865,25 +899,25 @@ class ExperimentalReplicate:
     def log2Comparison(self, keyword=None, threshold=0, normalizeToBasal=False, tail="both", replicateNumber=0, fig=None, givenTitle=None):
         """Compares and graphs percentage of peptides in individual others that show a specified log2 fold difference compared to reference.
 
-		Args:
-			keyword (str): optional keyword to include to limit peptides considered in comparison
-			threshold (str): log2 cutoff threshold
-			normalizeToBasal (bool): whether to subtract all others time points by each others basal (0), and subtract all reference time points by reference basal (0)
-			tail (str): tail of threshold to consider
-				"both": peptides with log2 >= threshold and log2 <= -1*threshold
-				"lower": peptides with log2 <= -1*threshold
-				"upper": peptides with log2 >= threshold
-			replicateNumber (int): used to select line style (specified if multiple replicates are plotted on the same plot)
-			fig (plt.figure): figure to graph on (specified if multiple replicates are plotted on the same plot)
+        Args:
+            keyword (str): optional keyword to include to limit peptides considered in comparison
+            threshold (str): log2 cutoff threshold
+            normalizeToBasal (bool): whether to subtract all others time points by each others basal (0), and subtract all reference time points by reference basal (0)
+            tail (str): tail of threshold to consider
+                "both": peptides with log2 >= threshold and log2 <= -1*threshold
+                "lower": peptides with log2 <= -1*threshold
+                "upper": peptides with log2 >= threshold
+            replicateNumber (int): used to select line style (specified if multiple replicates are plotted on the same plot)
+            fig (plt.figure): figure to graph on (specified if multiple replicates are plotted on the same plot)
 
-		Notes:
-			Each others is separately overlapped with reference when performing comparison to preserve maximum data, so not all peptides are expressed across all points.
+        Notes:
+            Each others is separately overlapped with reference when performing comparison to preserve maximum data, so not all peptides are expressed across all points.
 
-		Returns:
-			comparison (list of list of df): peptides meeting threshold as a list of replicates, each of which is a list of cell line DataFrames
-			originalSizes (list of list of int): overlapping peptides for each others to reference comparison, useful to see how many peptides each percentage represents
+        Returns:
+            comparison (list of list of df): peptides meeting threshold as a list of replicates, each of which is a list of cell line DataFrames
+            originalSizes (list of list of int): overlapping peptides for each others to reference comparison, useful to see how many peptides each percentage represents
 
-		"""
+        """
 
         if fig == None:
             f = plt.figure(random.randint(1, 1000))
@@ -989,27 +1023,27 @@ class ExperimentalReplicate:
     def peptidePicker(self, threshold=0, normalizeToBasal=False, tail="both", trajectory=None):
         """Selects peptides that meet a given trajectory compared to a threshold across individual cell lines.
 
-		Args:
-			threshold (str): log2 cutoff threshold
-			normalizeToBasal (bool): whether to subtract all others time points by each others basal (0), or subtract all reference time points by reference basal (0)
-			tail (str): tail of threshold to consider
-				"both": peptides with log2 >= threshold and log2 <= -1*threshold
-				"lower": peptides with log2 <= -1*threshold
-				"upper": peptides with log2 >= threshold
-			trajectory (list of bool/str): trajectory of peptides compared to threshold, default value is [True, True, True, True, True]
-				True: peptide must meet threshold at this time point to be included
-				False: peptide cannot meet threshold at this time point to be included
-				"All": time point does not enforce a threshold (all peptides pass this time point)
+        Args:
+            threshold (str): log2 cutoff threshold
+            normalizeToBasal (bool): whether to subtract all others time points by each others basal (0), or subtract all reference time points by reference basal (0)
+            tail (str): tail of threshold to consider
+                "both": peptides with log2 >= threshold and log2 <= -1*threshold
+                "lower": peptides with log2 <= -1*threshold
+                "upper": peptides with log2 >= threshold
+            trajectory (list of bool/str): trajectory of peptides compared to threshold, default value is [True, True, True, True, True]
+                True: peptide must meet threshold at this time point to be included
+                False: peptide cannot meet threshold at this time point to be included
+                "All": time point does not enforce a threshold (all peptides pass this time point)
 
-		Notes:
-			Each others is separately overlapped with reference when performing comparison to preserve maximum data, so not all peptides are expressed across all points.
+        Notes:
+            Each others is separately overlapped with reference when performing comparison to preserve maximum data, so not all peptides are expressed across all points.
 
-		Examples:
-			exp[0].peptidePicker(threshold = 1.5, tail = 'upper', trajectory = ["All", "All", False, False, True])
-				Finds peptides such that peptide_1_minute < 1.5, peptide_2_minute < 1.5, and peptide_5_minute.
-				0 and 30 second time points do not enforce threshold.
+        Examples:
+            exp[0].peptidePicker(threshold = 1.5, tail = 'upper', trajectory = ["All", "All", False, False, True])
+                Finds peptides such that peptide_1_minute < 1.5, peptide_2_minute < 1.5, and peptide_5_minute.
+                0 and 30 second time points do not enforce threshold.
 
-		"""
+        """
         others = []
         originalSizes = []
 
@@ -1095,6 +1129,8 @@ class ExperimentalReplicate:
             normalization (str): normalization scheme to use, default refbasal but can use refbasal, reftime, ownbasal
 
         """
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         modules.heatmap(self.cellFullIntersection.copy(), self.cellLines, self.timePoints, name, display, fileLocation, fullscreen, normalization)
 
     def heatmapToReference(self, name="", display=True, fileLocation="", fullscreen = False, normalization='refbasal'):
@@ -1108,6 +1144,8 @@ class ExperimentalReplicate:
             normalization (str): normalization scheme to use, default refbasal but can use refbasal, reftime, ownbasal
 
         """
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         modules.heatmapToReference(self.cellReferenceIntersections.copy(), self.cellLines, self.timePoints, name, display, fileLocation, fullscreen, normalization)
 
     def pcaToReference(self, name="", display=True, fileLocation="", fullscreen=False):
@@ -1124,6 +1162,8 @@ class ExperimentalReplicate:
 
 
         """
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         modules.pcaToReference(self.cellReferenceIntersections.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, fileLocation, fullscreen, self.colors)
 
     def pca(self, name="", display=True, fileLocation="", fullscreen=False):
@@ -1136,6 +1176,8 @@ class ExperimentalReplicate:
             fullscreen (bool): whether to display graph fullscreen
 
         """
+        if fileLocation == '':
+            fileLocation = self.fileLocation
         modules.pca(self.cellFullIntersection.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, fileLocation, fullscreen, self.colors)
 
 class PhenotypicMeasurement:
