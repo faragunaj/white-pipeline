@@ -10,9 +10,9 @@ In order to run this pipeline, you must install Python (3.x) and a collection of
 
 In order to run the demo notebook, you must install Jupyter Notebook in Command Propmt with:
 - pip install notebook
-Then open the notebook by running:
+- Then open the notebook by running:
 - jupyter notebook
-and then navigating to the file and opening it
+- and then navigating to the file and opening it
 
 
 Developed by Joe Faraguna under the supervision of Jacqueline Gerritsen and Cameron Flower for the Forest White Lab in MIT's Koch Center, Sp. 2019, Fa. 2019, Sp. 2020, Su. 2020.
