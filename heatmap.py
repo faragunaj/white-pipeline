@@ -83,8 +83,9 @@ exp.addPhenotypicMeasurement(phenotypicMeasurement, phenotypicType = 'Migration 
 # exp.heatmap(normalization = 'ownbasal')
 
 # exp.simpleCorr()
-# exp.correlationToReference()
-# exp.correlationToSelf()
+exp.correlationToReference(display = False, saveFile = True)
+# exp.correlationToSelf(display=False, saveFile = True)
+# exp.correlationToReferenceDiagonal()
 # exp.loadings()
 # exp[0].pca()
 # plt.show()
@@ -94,4 +95,4 @@ exp.addPhenotypicMeasurement(phenotypicMeasurement, phenotypicType = 'Migration 
 # exp.replicatePlot(display=False)
 # exp.groupPlot()
 # exp.phenotypicMeasurements['Migration Rate'].replicatePlot(relativeToReference = True, display = False)
-plt.show()
+# plt.show()

@@ -613,9 +613,9 @@ class Experiment:
 
             MutantPeptide.A will be correlated with ReferencePeptide.A, .B, ... Z
             MutantPeptide.B will be ....            ReferencePeptide.A, .B, ... Z
+            ...
 
             For trajectory plots, the shaded regions are 95% confidence intervals and the solid line is the mean.
-            ...
         '''
         if fileLocation == '':
             fileLocation = self.fileLocation
@@ -642,13 +642,41 @@ class Experiment:
 
             MutantPeptide.A will be correlated with MutantPeptide.A, .B, ... Z
             MutantPeptide.B will be ....            MutantPeptide.A, .B, ... Z
+            ...
 
             For trajectory plots, the shaded regions are 95% confidence intervals and the solid line is the mean.
-            ...
         '''
         if fileLocation == '':
             fileLocation = self.fileLocation
         modules.correlationToSelf(self.combinedReplicates.copy(), self.timePoints, self.secondTimePoints, self.cellLines, name, display, saveFile, saveFig, fileLocation, normalization)
+
+    def correlationToReferenceDiagonal(self, name = '', display = True, saveFile = False, saveFig = False, fileLocation = '', normalization = 'refbasal'):
+        '''For each cell line, computes the correlation of each peptide's trajectory to the corresponding reference peptide trajectory.
+
+        Args:
+            name (str): name to include in plots
+            display (bool): whether to display plots
+            saveFile (bool): whether to save data to Excel files
+            saveFig (bool): whether to save figs
+            fileLocation (str): location to save to
+            normalization (str): normalization scheme, either ownbasal, reftime, or refbasal
+
+        Notes:
+            Computes the Pearson Coefficient (R) between two peptide trajectories over time.
+                -1 is a negative linear relationship
+                0 is no linear relationship
+                +1 is a positive linear relationship
+
+            If two peptides have trajectories over time that are positive linear scalings of each other, they will have a Pearson R close to +1
+
+            MutantPeptide.A will be correlated with ReferencePeptide.A ONLY
+            MutantPeptide.B will be correlated with ReferencePeptide.B ONLY
+            ...
+            ...
+        '''
+        if fileLocation == '':
+            fileLocation = self.fileLocation
+        modules.correlationToReferenceDiagonal(self.experimentReferenceIntersections.copy(), self.timePoints, self.secondTimePoints, self.cellLines, name, display, saveFile, saveFig, fileLocation, normalization, self.colors)
 
     def groupPlot(self, key = None, relativeToReference = False, display = True, name = '', fileLocation = ''):
         '''Plots one type of phenotypic data for the experiment, including std. dev. error bars and letter-based groups based on Tukey's HSD.

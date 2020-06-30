@@ -1,5 +1,6 @@
 import classes
 
+import re
 import sys
 import copy
 import string
@@ -724,6 +725,32 @@ def custom_corr(one,two):
 	#builds a new df to store the r values
 	return pd.DataFrame(correl,index=one.index, columns = one.index)
 
+def diagonal_corr(one,two,line):
+	'''Computes correlation between two matrices element-wise, but only for diagonal.
+
+	Args:
+		one (df): first df
+		two (df): second df
+		line (str): name of line being compared to reference
+
+	Notes:
+		Modified from https://github.com/pandas-dev/pandas/blob/v0.25.1/pandas/core/frame.py#L7451-L7534
+		Will yield a len(one)-long Series of correlation values from [-1,1], where list[i] is the correlation between one[i] and two[i].
+	
+	'''
+
+	#gets peptide trajectory values
+	trj1 = one.values
+	trj2 = two.values
+
+	#instantiates new df
+	correl = np.empty(len(one), dtype=float)
+
+	for i in range(len(trj1)):
+		correl[i] = pearsonr(trj1[i],trj2[i])[0]
+
+	return pd.DataFrame(correl, index = one.index, columns = [line]).reset_index()
+
 def clustermap(corr, mut, cellLine1, cellLine2, title, fileLocation, display, saveFig):
 	'''Plots a custom clustermap with the last 4 hierarchical cluster groups indicated by different colors.
 
@@ -775,13 +802,13 @@ def color_groups(s):
 	'''
 	return ['background-color: {}'.format(s['Group']) for v in s]
 
-# def color_groups_only(s):
-# 	'''Colors group column only based on hierarchical clustering groups
-# 	'''
-# 	if s.name[0] == 'Group':
-# 		return ['background-color: {}'.format(g) for g in s]
-# 	else:
-# 		return ['']*s.shape[0]
+def color_groups_only(s):
+	'''Colors group column only based on hierarchical clustering groups
+	'''
+	if s.name[0] == 'Group':
+		return ['background-color: {}'.format(g) for g in s]
+	else:
+		return ['']*s.shape[0]
 
 def correlationToReference(ints, time_points, second_time_points, cell_lines, name='', display = True, saveFile = False, saveFig = False, fileLocation = '', normalization = 'refbasal'):
 	'''For each cell line, computes the correlation of all peptide trajectories to all reference peptide trajectories.
@@ -835,10 +862,6 @@ def correlationToReference(ints, time_points, second_time_points, cell_lines, na
 			#normalizes to unstimulated reference
 			fullInt = np.log2(fullInt.div(fullInt[str(cell_lines[-1])+"-"+str(time_points[0])], axis = 0))
 
-		# big = fullInt.max().max()
-		# biggest = max(big, biggest)
-		# small = fullInt.min().min()
-		# smallest = min(small, smallest)
 		normalizedInts.append(fullInt)
 
 	referenceName = cell_lines[-1]
@@ -850,6 +873,8 @@ def correlationToReference(ints, time_points, second_time_points, cell_lines, na
 		saveTitle = name+" "
 	title += "{} to " + str(referenceName) + " ({} normalized) corr".format(normalization)
 	saveTitle += 'correlation to {} ({} normalized)'.format(referenceName, normalization)
+
+	trajs = []
 
 	#iterates through cell lines, isolating the correct columns in the df and then calculating the correlation matrix
 	def looper():
@@ -874,16 +899,24 @@ def correlationToReference(ints, time_points, second_time_points, cell_lines, na
 				mut.drop(['Sizes'], axis = 1, inplace = True)
 				descriptions = mut["Master Protein Descriptions"].values
 				mut["Gene Name"] = [re.split("( OS=)",each)[0] for each in descriptions]
+				trajs.append(mut)
 
-				print('writing to sheet name: {}'.format(fileLocation, saveTitle, mutName))
-				mut.style.apply(color_groups, axis = 1).to_excel(writer, sheet_name = str(mutName), engine = 'openpyxl')
+				print('writing to: {}{} C.xlsx, sheet name: {}-C'.format(fileLocation, saveTitle, mutName))
+
+				fullCorr.to_excel(writer, sheet_name = str(mutName)+'-C')
+				# mut.style.apply(color_groups, axis = 1).to_excel(writer, sheet_name = str(mutName)+'-T', engine = 'openpyxl')
 				# mut = mut.set_index(["peptide-phosphosite",'Master Protein Descriptions'])
 				# fullCorr['Group'] = mut['Group']
 				# fullCorr.style.apply(color_groups_only, axis = 0).to_excel(writer, sheet_name = str(mutName)+'-C', engine = 'openpyxl')
 
 	if saveFile:
-		with pd.ExcelWriter("{}{}.xlsx".format(fileLocation, saveTitle)) as writer:
+		with pd.ExcelWriter("{}{} C.xlsx".format(fileLocation, saveTitle)) as writer:
 			looper()
+		with pd.ExcelWriter("{}{} T.xlsx".format(fileLocation, saveTitle)) as writer:
+			print('\nFinishing files.')
+			for i in range(len(trajs)):
+				print('writing to: {}{} T.xlsx, sheet name: {}-T'.format(fileLocation, saveTitle, cell_lines[i]))
+				trajs[i].style.apply(color_groups, axis = 1).to_excel(writer, sheet_name = str(cell_lines[i])+'-T', engine = 'openpyxl')
 	else:
 		looper()
 
@@ -907,12 +940,15 @@ def correlationToSelf(inds, time_points, second_time_points, cell_lines, name, d
 			-1 is a negative linear relationship
 			0 is no linear relationship
 			+1 is a positive linear relationship
-
 		If two peptides have trajectories over time that are positive linear scalings of each other, they will have a Pearson R close to +1
 
 		MutantPeptide.A will be correlated with MutantPeptide.A, .B, ... Z
 		MutantPeptide.B will be ....			MutantPeptide.A, .B, ... Z
 		...
+
+		If saveFile is True, will save two files, one ending in T for trajectory and one ending in C for correlation.
+
+		The trajectory plot shows the average peptide trajectory for each of the 4 largest hierarchical clustering groups, including a spaded 95% confidence interval.
 	'''
 	#dictionary for converting mixed time points to seconds
 	keys = [str(each) for each in time_points]
@@ -937,10 +973,6 @@ def correlationToSelf(inds, time_points, second_time_points, cell_lines, name, d
 			print("Normalize using 'ownbasal'")
 			sys.exit(0)
 
-		# big = fullInt.max().max()
-		# biggest = max(big, biggest)
-		# small = fullInt.min().min()
-		# smallest = min(small, smallest)
 		normalizedInds.append(fullInt)
 
 	sns.set(style="white")
@@ -953,6 +985,8 @@ def correlationToSelf(inds, time_points, second_time_points, cell_lines, name, d
 		saveTitle = name+''
 	title += "{} to {}" + " ({} normalized) corr".format(normalization)
 	saveTitle += 'correlation to self ({} normalized)'.format(normalization)
+
+	trajs = []
 
 	def looper():
 		for i in range(len(normalizedInds)):
@@ -977,9 +1011,166 @@ def correlationToSelf(inds, time_points, second_time_points, cell_lines, name, d
 				descriptions = mut["Master Protein Descriptions"].values
 				mut["Gene Name"] = [re.split("( OS=)",each)[0] for each in descriptions]
 
-				print('writing to: {}{}.xlsx, sheet name: {}'.format(fileLocation, saveTitle, cellLine))
+				print('writing to: {}{} C.xlsx, sheet name: {}-C'.format(fileLocation, saveTitle, cellLine))
 
-				mut.style.apply(color_groups, axis = 1).to_excel(writer, sheet_name = str(cellLine), engine = 'openpyxl')
+				# mut.style.apply(color_groups, axis = 1).to_excel(writer, sheet_name = str(cellLine)+'-T', engine = 'openpyxl')
+				# corrs.append(corr)
+
+				mut = mut.set_index(["peptide-phosphosite",'Master Protein Descriptions', 'Gene Name'])
+				trajs.append(mut)
+
+				# corr['Gene Name'] = mut['Gene Name']
+				# corr.reset_index(inplace = True)
+				# corr.set_index(["peptide-phosphosite",'Master Protein Descriptions', 'Gene Name'], inplace = True)
+
+				corr.to_excel(writer, sheet_name = str(cellLine)+'-C')
+				# corr.style.apply(color_groups_only, axis = 0).to_excel(writer, sheet_name = str(cellLine)+'-C', engine = 'openpyxl')
+				# break
+				# fullCorr.style.apply(color_groups_only, axis = 0).to_excel(writer, sheet_name = str(mutName)+'-C', engine = 'openpyxl')
+
+	if saveFile:
+		with pd.ExcelWriter("{}{} C.xlsx".format(fileLocation, saveTitle)) as writer:
+			looper()
+		with pd.ExcelWriter("{}{} T.xlsx".format(fileLocation, saveTitle)) as writer:
+			print('\nFinishing files.')
+			for i in range(len(trajs)):
+				print('writing to: {}{} T.xlsx, sheet name: {}-T'.format(fileLocation, saveTitle, cell_lines[i]))
+				trajs[i].style.apply(color_groups, axis = 1).to_excel(writer, sheet_name = str(cell_lines[i])+'-T', engine = 'openpyxl')
+	else:
+		looper()
+
+def correlationToReferenceDiagonal(ints, time_points, second_time_points, cell_lines, name='', display = True, saveFile = False, saveFig = False, fileLocation = '', normalization = 'refbasal', colors = []):
+	'''For each cell line, computes the correlation of each peptide's trajectory to the corresponding reference peptide trajectory.
+
+	Parameters:
+		ints (list of dfs): list of individual cell line intersections with reference
+		cell_lines (list): list of cell line names
+		time_points (list): list of time points in trajectories
+		second_time_points (list): list of second time points
+		name (str): name to include in plots
+		display (bool): whether to display plots
+		saveFile (bool): whether to save data to Excel files
+		saveFig (bool): whether to save figs
+		fileLocation (str): location to save to
+		normalization (str): normalization scheme, either ownbasal, reftime, or refbasal
+
+	Notes:
+		Computes the Pearson Coefficient (R) between two peptide trajectories over time.
+			-1 is a negative linear relationship
+			0 is no linear relationship
+			+1 is a positive linear relationship
+		If two peptides have trajectories over time that are positive linear scalings of each other, they will have a Pearson R close to +1
+
+		MutantPeptide.A will be correlated with ReferencePeptide.A ONLY
+		MutantPeptide.B will be correlated with ReferencePeptide.B ONLY
+		...
+
+		If saveFile is True, will save two files, one ending in T for trajectory and one ending in C for correlation.
+
+		The trajectory plot shows the average peptide trajectory for each of the 4 largest hierarchical clustering groups, including a spaded 95% confidence interval.
+	'''
+	normalizedInts = []
+	sns.set(style='white')
+
+	#NORMALIZATION
+	# biggest = -1*float('inf')
+	# smallest = float('inf')
+	for fullInt in ints:
+		if normalization == "ownbasal":
+			#for normalizing to basal
+			def basalNorm(x):
+				line = x.name.split("-")[0]
+				return np.log2(x.div(fullInt[line+"-"+str(time_points[0])]))
+
+			fullInt = fullInt.apply(basalNorm,axis=0)
+		elif normalization == "reftime":
+			#for normalizing to all reference timepoints
+			def timeNorm(x):
+				time = x.name.split("-")[1]
+				return np.log2(x.div(fullInt[str(cell_lines[-1])+"-"+time]))
+
+			fullInt = fullInt.apply(timeNorm,axis=0)
+		elif normalization == "refbasal":
+			#normalizes to unstimulated reference
+			fullInt = np.log2(fullInt.div(fullInt[str(cell_lines[-1])+"-"+str(time_points[0])], axis = 0))
+
+		# big = fullInt.max().max()
+		# biggest = max(big, biggest)
+		# small = fullInt.min().min()
+		# smallest = min(small, smallest)
+		normalizedInts.append(fullInt)
+
+	referenceName = cell_lines[-1]
+	if name == '':
+		title = ''
+		saveTitle = ''
+	else:
+		title = name+" "
+		saveTitle = name+" "
+	title += "{} to " + str(referenceName) + " ({} normalized) corr".format(normalization)
+	saveTitle += 'diagonal correlation to {} ({} normalized)'.format(referenceName, normalization)
+
+	#iterates through cell lines, isolating the correct columns in the df and then calculating the correlation matrix
+	def looper():
+		for i in range(len(normalizedInts)):
+			print("\nCorrelating {} with {}".format(cell_lines[i], cell_lines[-1]))
+			mut = normalizedInts[i].iloc[:,range(len(time_points))]
+			reference = normalizedInts[i].iloc[:,range(len(time_points),len(time_points)*2)]
+			mutName = cell_lines[i]
+
+			if i == 0:
+				fullCorr = diagonal_corr(mut, reference, mutName)
+				sns.distplot(fullCorr.iloc[:,-1], hist = False, color = colors[i])
+			else:
+				corr = diagonal_corr(mut, reference, mutName)
+				fullCorr = pd.merge(fullCorr,corr,how="outer",on=["peptide-phosphosite","Master Protein Descriptions"])
+				sns.distplot(corr.iloc[:,-1], hist = False, color = colors[i])
+			
+			# sns.distplot(fullCorr.iloc[:,-1], kde = False, color = colors[i])
+		plt.show()
+		
+		descriptions = fullCorr['Master Protein Descriptions'].values
+		fullCorr['Gene Name'] = [re.split("( OS=)",each)[0] for each in descriptions]
+		fullCorr = fullCorr.set_index(["peptide-phosphosite",'Master Protein Descriptions', 'Gene Name'])
+		# melted = pd.melt(fullCorr, id_vars=["peptide-phosphosite",'Master Protein Descriptions', 'Gene Name'])
+
+		# ax = sns.barplot(x = 'peptide-phosphosite', y = 'value', hue = 'variable', data = melted, ci = None)
+		# ax.set_xticklabels(None)
+		# sns.distplot(fullCorr.iloc[:,0], kde = False)
+		# plt.show()
+
+		#draw the clustermap. cg is ClusterGrid object returned by seaborn
+		# cg = sns.clustermap(fullCorr, cmap = 'bwr', center = 0, norm = matplotlib.colors.Normalize(vmin=-1, vmax=1), xticklabels = False, yticklabels = False)
+		# plt.show()
+		# #adds labels to axes of heatmap object
+		# cg.ax_heatmap.set_xlabel(str(cellLine1))
+		# cg.ax_heatmap.set_ylabel(str(cellLine2))
+		# #adds title to overall figure (can't just do cg.ax_heatmap.set_title() because then cluster linkages obscure title)
+		# cg.fig.suptitle(title)
+
+
+			# break
+			# mut = clustermap(fullCorr,mut,mutName,referenceName,title.format(mutName), fileLocation, display = display, saveFig = saveFig)
+
+			# if display:
+			# 	plt.show()
+
+			# if saveFig:
+			# 	print('writing correlation plot')
+			# 	plt.savefig(fileLocation+title.format(mutName)+'.png')
+			# 	plt.close()
+
+			# if saveFile:
+			# 	mut = mut.reset_index()
+			# 	mut.drop(['Sizes'], axis = 1, inplace = True)
+			# 	descriptions = mut["Master Protein Descriptions"].values
+			# 	mut["Gene Name"] = [re.split("( OS=)",each)[0] for each in descriptions]
+
+			# 	print('writing to sheet name: {}'.format(fileLocation, saveTitle, mutName))
+			# 	mut.style.apply(color_groups, axis = 1).to_excel(writer, sheet_name = str(mutName), engine = 'openpyxl')
+				# mut = mut.set_index(["peptide-phosphosite",'Master Protein Descriptions'])
+				# fullCorr['Group'] = mut['Group']
+				# fullCorr.style.apply(color_groups_only, axis = 0).to_excel(writer, sheet_name = str(mutName)+'-C', engine = 'openpyxl')
 
 	if saveFile:
 		with pd.ExcelWriter("{}{}.xlsx".format(fileLocation, saveTitle)) as writer:
