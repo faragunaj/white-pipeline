@@ -8,7 +8,7 @@ In order to run this pipeline, you must install Python (3.x) and a collection of
 - pip install pandas matplotlib numpy seaborn bioinfokit sklearn scipy statsmodels
 
 
-In order to run the demo notebook, you must install Jupyter Notebook in Command Propmt with:
+In order to run the demo notebook, you must install Jupyter Notebook in Command Prompt with:
 - pip install notebook
 - Then open the notebook by running:
 - jupyter notebook
