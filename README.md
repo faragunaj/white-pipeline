@@ -10,7 +10,8 @@ In order to run this pipeline, you must install Python (3.x) and a collection of
 
 In order to run the demo notebook, you must install Jupyter Notebook in Command Prompt with:
 - pip install notebook
-- Then open the notebook by running:
+
+Then open the notebook by running:
 - jupyter notebook
 - and then navigating to the file and opening it
 
