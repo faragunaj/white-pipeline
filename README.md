@@ -5,7 +5,7 @@ A python-based pipeline for mass spec and phenotypic data analysis in proteomics
 
 In order to run this pipeline, you must install Python (3.x) and a collection of Python packages.
 - After installing Python, open command Prompt and enter:
-- pip install pandas matplotlib numpy seaborn bioinfokit sklearn scipy statsmodels
+- pip install pandas matplotlib numpy seaborn bioinfokit sklearn scipy statsmodels jinja2
 
 
 In order to run the demo notebook, you must install Jupyter Notebook in Command Prompt with:
