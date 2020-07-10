@@ -63,7 +63,7 @@ second_time_points = [0, 30, 60, 120, 300]
 
 
 #	#	EXPERIMENT CREATION	#	#
-exp = classes.Experiment(locations, cell_lines, time_points, second_time_points, case_insensitive = True, names = ["BR1","BR2","BR3"], fileLocation = 'demo/output/')
+exp = classes.Experiment(locations, cell_lines, time_points, second_time_points, case_insensitive = True, names = ["BR1","BR2","BR3"], fileLocation = '')
 exp.addTechnicalReplicate(technicalReplicate,1)
 exp.combineReplicates()
 exp.addPhenotypicMeasurement(phenotypicMeasurement, phenotypicType = 'Migration Rate')
@@ -74,19 +74,27 @@ exp.addPhenotypicMeasurement(phenotypicMeasurement, phenotypicType = 'Migration 
 #	#	ANALYSIS	#	#
 # exp.heatmapToReference(normalization = 'ownbasal')
 # exp.heatmapToReference(normalization = 'reftime')
-# exp.pcaToReference()
+exp.pcaToReference(display = False, saveFile = True)
 # exp.setReference('2934')
 # exp.pcaToReference()
 # plt.show()
+# exp.heatmap()
+# plt.show()
+# exp.heatmap(display = False, saveFile = True)
+# exp.heatmapToReference(display = False, saveFig = True, normalization = 'reftime')
+# plt.show()
+
+# exp.pca(display=False, saveFile = True)
+
 # exp.heatmap(normalization = 'reftime')
 # exp.heatmap(normalization = 'refbasal')
 # exp.heatmap(normalization = 'ownbasal')
 
 # exp.simpleCorr()
-exp.correlationToReference(display = False, saveFile = True)
+# exp.correlationToReference(display = True, saveFile = False)
 # exp.correlationToSelf(display=False, saveFile = True)
-# exp.correlationToReferenceDiagonal()
-# exp.loadings()
+# exp.correlationToReferenceDiagonal(bins = 10, kde = True, saveFile = True, display = False)
+# exp.setOutputLocation('/demo/output')
 # exp[0].pca()
 # plt.show()
 

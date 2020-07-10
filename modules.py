@@ -3,6 +3,7 @@ import classes
 import re
 import sys
 import copy
+import math
 import string
 import random
 import matplotlib.colors
@@ -73,8 +74,6 @@ def analyzeLoadings(cell_union,cell_lines,matchedLoadings1,matchedLoadings2,by='
 		'rank' is probably a more robust way to compare loadings between PCAs
 
 	"""
-	import math
-
 	rankedLoadings = pd.DataFrame(data = np.zeros((cell_union.shape[0],(len(cell_lines)+2)*2)),index=cell_union.index)
 
 	#renames columns to be more understandable
@@ -86,6 +85,8 @@ def analyzeLoadings(cell_union,cell_lines,matchedLoadings1,matchedLoadings2,by='
 	names.append('avg-2')
 	names.append('n-2')
 	rankedLoadings.columns = names
+	print(names)
+	print(rankedLoadings)
 
 	#populates rankedLoadings with individual ranks for PC1 and PC2 for each others to reference comparison
 	for i in range(len(matchedLoadings1)):
@@ -167,23 +168,23 @@ def fullIntersection(cellData, caseInsensitive):
 
 	if caseInsensitive:
 		#performs initial intersection of 2934 and 2935 based on upper-peptide and Master Protein Descriptions
-		intersection = pd.merge(cell_data[0],cell_data[1],how="inner",on=["upper-peptide","Master Protein Descriptions"])
+		intersection = pd.merge(cell_data[0],cell_data[1],how="inner",on=["upper-peptide","Master Protein Descriptions", "Overflow Protein Descriptions"])
 
 	else:
 		#performs initial intersection of 2934 and 2935 based on peptide-phosphosite and Master Protein Descriptions
-		intersection = pd.merge(cell_data[0],cell_data[1],how="inner",on=["peptide-phosphosite","Master Protein Descriptions"])
+		intersection = pd.merge(cell_data[0],cell_data[1],how="inner",on=["peptide-phosphosite","Master Protein Descriptions", "Overflow Protein Descriptions"])
 	#iterates through rest of cell lines and finds intersection with growing DataFrame of intersecting peptides
 	for i in range(2,len(cell_data)):
 		if caseInsensitive:
-			intersection = pd.merge(intersection,cell_data[i],how="inner",on=["upper-peptide","Master Protein Descriptions"])
+			intersection = pd.merge(intersection,cell_data[i],how="inner",on=["upper-peptide","Master Protein Descriptions", "Overflow Protein Descriptions"])
 		else:
-			intersection = pd.merge(intersection,cell_data[i],how="inner",on=["peptide-phosphosite","Master Protein Descriptions"])
+			intersection = pd.merge(intersection,cell_data[i],how="inner",on=["peptide-phosphosite","Master Protein Descriptions", "Overflow Protein Descriptions"])
 
 	if caseInsensitive:
 		intersection.rename(columns = {'upper-peptide': 'peptide-phosphosite'},inplace = True)
 
 	# print(intersection)
-	intersection = intersection.set_index(["peptide-phosphosite",'Master Protein Descriptions'])
+	intersection = intersection.set_index(["peptide-phosphosite",'Master Protein Descriptions', 'Overflow Protein Descriptions'])
 
 	return intersection
 
@@ -215,12 +216,12 @@ def separateIntersections(cellData, commonData, caseInsensitive, combine = False
 	#iterates through rest of cell lines and finds intersection with growing DataFrame of intersecting peptides
 	for i in range(len(cell_data)):
 		if caseInsensitive:
-			cell_data[i] = pd.merge(cell_data[i],common_data,how="inner",on=["upper-peptide","Master Protein Descriptions"])
+			cell_data[i] = pd.merge(cell_data[i],common_data,how="inner",on=["upper-peptide","Master Protein Descriptions", "Overflow Protein Descriptions"])
 			cell_data[i].rename(columns = {'upper-peptide':'peptide-phosphosite'},inplace = True)
 		else:
-			cell_data[i] = pd.merge(cell_data[i],common_data,how="inner",on=["peptide-phosphosite","Master Protein Descriptions"])
+			cell_data[i] = pd.merge(cell_data[i],common_data,how="inner",on=["peptide-phosphosite","Master Protein Descriptions", "Overflow Protein Descriptions"])
 
-		cell_data[i] = cell_data[i].set_index(["peptide-phosphosite",'Master Protein Descriptions'])
+		cell_data[i] = cell_data[i].set_index(["peptide-phosphosite",'Master Protein Descriptions', 'Overflow Protein Descriptions'])
 
 	if combine:
 		if caseInsensitive:
@@ -261,17 +262,17 @@ def combineReplicates(experiment, n_cutoff, std_cutoff):
 	full_replicate_data = [0]*len(experiment.cellLines)
 
 	for i in range(len(experiment.cellLines)):
-		stat_data[i] = pd.merge(replicates[0][i],replicates[1][i],how="outer",on=["peptide-phosphosite","Master Protein Descriptions"],suffixes=('','_2'))
+		stat_data[i] = pd.merge(replicates[0][i],replicates[1][i],how="outer",on=["peptide-phosphosite","Master Protein Descriptions", "Overflow Protein Descriptions"],suffixes=('','_2'))
 
 	for i in range(len(experiment.cellLines)):
 		toDrop = []
 		full_replicate_data[i] = pd.DataFrame()
 
 		for k in range(2,len(replicates)):
-			stat_data[i] = pd.merge(stat_data[i],replicates[k][i],how="outer",on=["peptide-phosphosite","Master Protein Descriptions"],suffixes=('','_'+str(k+1)))
+			stat_data[i] = pd.merge(stat_data[i],replicates[k][i],how="outer",on=["peptide-phosphosite","Master Protein Descriptions", "Overflow Protein Descriptions"],suffixes=('','_'+str(k+1)))
 		
 		stat_data[i] = stat_data[i].rename(columns = names)
-		stat_data[i] = stat_data[i].set_index(["peptide-phosphosite",'Master Protein Descriptions'])
+		stat_data[i] = stat_data[i].set_index(["peptide-phosphosite",'Master Protein Descriptions', 'Overflow Protein Descriptions'])
 
 		for time in experiment.timePoints:
 			cellLine = experiment.cellLines[i]
@@ -316,7 +317,18 @@ def combineReplicates(experiment, n_cutoff, std_cutoff):
 		full_replicate_data[i].reset_index(inplace = True)
 	return stat_data,merged_data,full_replicate_data
 
-def heatmap(intersection, cell_lines, time_points, name, display, fileLocation, fullscreen, normalization):
+def background_gradient(s, m, M, cmap='bwr', low=0, high=0):
+	#entire df-wise gradient generation, modified from https://stackoverflow.com/questions/38931566/pandas-style-background-gradient-both-rows-and-columns
+    # rng = M - m
+    #centers to 0
+    rng = max(M-0, 0-m)
+    norm = matplotlib.colors.Normalize(0-rng, 0+rng)
+    # norm = matplotlib.colors.Normalize(m - (rng * low), M + (rng * high))
+    normed = norm(s.values)
+    c = [matplotlib.colors.rgb2hex(x) for x in plt.cm.get_cmap(cmap)(normed)]
+    return ['background-color: %s' % color for color in c]
+
+def heatmap(intersection, cell_lines, time_points, name, display, saveFile, saveFig, fileLocation, fullscreen, normalization):
 	#splits into reference and other cell lines
 	reference = intersection.iloc[:,-1*len(time_points):]
 	others = intersection.iloc[:,:-1*len(time_points)]
@@ -344,7 +356,7 @@ def heatmap(intersection, cell_lines, time_points, name, display, fileLocation, 
 
 	sns.set()
 	#plots heatmap with clusters for peptides
-	g = sns.clustermap(intersection, yticklabels=False, xticklabels=True, center=0, row_cluster = False, col_cluster=False, cmap = 'bwr')
+	g = sns.clustermap(intersection, yticklabels=False, xticklabels=True, center=0, row_cluster = True, col_cluster=False, cmap = 'bwr')
 	g.ax_heatmap.set_title(name+title)
 	#adds dividers between cell lines
 	dividers = [i*len(time_points) for i in range(0,len(cell_lines)+1)]
@@ -353,24 +365,26 @@ def heatmap(intersection, cell_lines, time_points, name, display, fileLocation, 
 	dividers[-1] -= .05
 	g.ax_heatmap.vlines(dividers, *g.ax_heatmap.get_ylim(), colors='k')
 
-	if display:
-		pass
-	else:
+	if saveFig:
 		print('writing to:'+fileLocation+title+' heatmap.png')
 		plt.savefig(fileLocation+title+' heatmap.png')
 		plt.close()
 
-	# print(dir(g.ax_heatmap.yaxis))
-	# g.ax_heatmap.xaxis.set_minor_locator(MultipleLocator(5))
-	# print(g.ax_heatmap.xaxis.get_majorticklabels())
-	# g.ax_heatmap.xaxis.set_major_locator(MultipleLocator(len(time_points)))
-	# g.ax_heatmap.xaxis.set_ticklabels(cell_lines)
+	if saveFile:
+		r_ind = g.dendrogram_row.reordered_ind
+		with pd.ExcelWriter("{}{} heatmap.xlsx".format(fileLocation, title)) as writer:
+			intersection.iloc[r_ind,:].style.apply(background_gradient, cmap = 'bwr', m = intersection.min().min(), M = intersection.max().max()).to_excel(writer, engine = 'openpyxl')
 
-def heatmapToReference(cellData, cell_lines, time_points, name, display, fileLocation, fullscreen, normalization):
+	if not display:
+		plt.close()
+
+def heatmapToReference(cellData, cell_lines, time_points, name, display, saveFile, saveFig, fileLocation, fullscreen, normalization):
 	collection = []
 	titles = []
 	min_val = float("inf")
 	max_val = -1*float("inf")
+	saveTitle = 'heatmaps to {} normalized to {}'.format(cell_lines[-1], normalization)
+
 	for ind, intersection in enumerate(cellData):
 		others = intersection.iloc[:,:len(time_points)]
 		reference = intersection.iloc[:,len(time_points):]
@@ -403,21 +417,32 @@ def heatmapToReference(cellData, cell_lines, time_points, name, display, fileLoc
 
 	sns.set()
 
-	for i, others in enumerate(collection):
-		#plots heatmap with clusters for peptides
-		g = sns.clustermap(others, yticklabels=False, xticklabels=True, center=0, row_cluster = True, col_cluster=False, cmap = 'bwr', vmin = min_val, vmax = max_val)
-		g.ax_heatmap.set_title(name+titles[i])
-		r_ind = g.dendrogram_row.reordered_ind
-		
-		if display:
-			pass
-		else:
-			print('writing to:'+fileLocation+title+' heatmap.png')
-			plt.savefig(fileLocation+title+' heatmap.png')
-			plt.close()
+	def looper():
+		for i, others in enumerate(collection):
+			#plots heatmap with clusters for peptides
+			g = sns.clustermap(others, yticklabels=False, xticklabels=True, center=0, row_cluster = True, col_cluster=False, cmap = 'bwr', vmin = min_val, vmax = max_val)
+			g.ax_heatmap.set_title(name+titles[i])
+			r_ind = g.dendrogram_row.reordered_ind
+			
+			if saveFig:
+				print('writing to:'+fileLocation+titles[i]+' heatmap.png')
+				plt.savefig(fileLocation+titles[i]+' heatmap.png')
+				plt.close()
+
+			if saveFile:
+				others.iloc[r_ind,:].style.apply(background_gradient, cmap = 'bwr', m = min_val, M = max_val).to_excel(writer, sheet_name = str(cell_lines[i]), engine = 'openpyxl')
+
+			if not display:
+				plt.close()
+
+	if saveFile:
+		with pd.ExcelWriter("{}{}.xlsx".format(fileLocation, saveTitle)) as writer:
+			looper()
+	else:
+		looper()
 
 
-def pcaToReference(cellData, cell_lines, time_points, time_points_seconds, name = "", display = True, fileLocation = "", fullscreen = False, colors = None):
+def pcaToReference(cellData, cell_lines, time_points, time_points_seconds, name = "", display = True, saveFile = False, saveFig = False,  fileLocation = "", fullscreen = False, colors = None):
 	"""Plots separate PCAs comparing each others to reference individually.
 
 	Args:
@@ -451,6 +476,7 @@ def pcaToReference(cellData, cell_lines, time_points, time_points_seconds, name 
 	#list of transformed data (has x and y of each time point for each cell line in pca space)
 	transformed = [0]*(len(cell_lines)-1)
 	explained = [0]*(len(cell_lines)-1)
+	loadings = [0]*(len(cell_lines)-1)
 
 	#performs pca and creates plottable transformation of time points
 	for i in range(len(pcas)):
@@ -458,6 +484,7 @@ def pcaToReference(cellData, cell_lines, time_points, time_points_seconds, name 
 		pcas[i].fit(cell_data[i])
 		transformed[i] = pcas[i].transform(cell_data[i])
 		explained[i] = pcas[i].explained_variance_ratio_
+		
 
 	#plot each cell line individually
 	for i in range(len(pcas)):
@@ -485,16 +512,21 @@ def pcaToReference(cellData, cell_lines, time_points, time_points_seconds, name 
 			mng = plt.get_current_fig_manager()
 			mng.resize(*mng.window.maxsize())
 
-		if display:
-			pass
-		else:
+		if saveFig:
 			print('writing to:{} pca of {} to {}.png'.format(fileLocation,name,cell_lines[i],cell_lines[-1]))
 			plt.savefig(fileLocation+name+' pca of '+str(cell_lines[i])+' to '+str(cell_lines[-1])+'.png')
 			plt.close()
 
+		if not display:
+			plt.close()
+
+	if saveFile:
+		print(cellData)
+		analyzeLoadings(cellData, cell_lines, [], [])
+
 	return pcas
 
-def pca(intersection, cell_lines, time_points, time_points_seconds, name = "", display = True, fileLocation = "", fullscreen = False, colors = None):
+def pca(intersection, cell_lines, time_points, time_points_seconds, name = "", display = True, saveFile = False, saveFig = False,  fileLocation = "", fullscreen = False, colors = None):
 	"""Plots one PCA comparing all others and reference at once.
 
 	Args:
@@ -556,11 +588,18 @@ def pca(intersection, cell_lines, time_points, time_points_seconds, name = "", d
 		mng = plt.get_current_fig_manager()
 		mng.resize(*mng.window.maxsize())
 
-	if display:
-		pass
-	else:
+	if saveFig:
 		print('writing to:'+fileLocation+name+' pca.png')
 		plt.savefig(fileLocation+name+' pca.png')
+		plt.close()
+
+	if saveFile:
+		# print(intersection)
+		loadings = pd.DataFrame(pca.components_.T, columns = ['Loading 1', 'Loading 2'], index = intersection.index)
+		with pd.ExcelWriter("{}{} pca.xlsx".format(fileLocation, name)) as writer:
+			loadings.to_excel(writer)
+
+	if not display:
 		plt.close()
 
 	return pca
@@ -661,9 +700,9 @@ def splitCluster(mut, linkage, cellLine, title, fileLocation, display, saveFig):
 	#unpivots df from wide to long format for easy plotting with sns
 	#makes peptide labels accessible for melt
 	# print([each for each in mut])
-	melted = mut.melt(id_vars = ["peptide-phosphosite","Master Protein Descriptions","Sizes","Size", "Group"], value_name = "Log2 FC")
+	melted = mut.melt(id_vars = ["peptide-phosphosite","Master Protein Descriptions","Overflow Protein Descriptions","Sizes","Size", "Group"], value_name = "Log2 FC")
 	# print(melted)
-	melted = melted.set_index(["peptide-phosphosite", "Master Protein Descriptions"])
+	melted = melted.set_index(["peptide-phosphosite", "Master Protein Descriptions", "Overflow Protein Descriptions"])
 
 	#splits cellLine-timePoint into cellLine and timePoint for grouping
 	splt = melted['variable'].values
@@ -780,7 +819,7 @@ def clustermap(corr, mut, cellLine1, cellLine2, title, fileLocation, display, sa
 	#computes last 4 hierarchical cluster groups, then plots average peptide trajectories for each
 	melted, mut = splitCluster(mut.copy(), row_linkage, cellLine1, title, fileLocation, display, saveFig)
 
-	mut = mut.set_index(["peptide-phosphosite", "Master Protein Descriptions"])
+	mut = mut.set_index(["peptide-phosphosite", "Master Protein Descriptions", "Overflow Protein Descriptions"])
 
 	#draw the clustermap. cg is ClusterGrid object returned by seaborn
 	cg = sns.clustermap(corr, row_linkage=row_linkage, col_linkage = col_linkage, cmap = 'bwr', center = 0,
@@ -909,6 +948,9 @@ def correlationToReference(ints, time_points, second_time_points, cell_lines, na
 				# fullCorr['Group'] = mut['Group']
 				# fullCorr.style.apply(color_groups_only, axis = 0).to_excel(writer, sheet_name = str(mutName)+'-C', engine = 'openpyxl')
 
+			if not display:
+				plt.close()
+
 	if saveFile:
 		with pd.ExcelWriter("{}{} C.xlsx".format(fileLocation, saveTitle)) as writer:
 			looper()
@@ -961,7 +1003,7 @@ def correlationToSelf(inds, time_points, second_time_points, cell_lines, name, d
 	# biggest = -1*float('inf')
 	# smallest = float('inf')
 	for fullInt in inds:
-		fullInt = fullInt.set_index(["peptide-phosphosite",'Master Protein Descriptions'])
+		fullInt = fullInt.set_index(["peptide-phosphosite",'Master Protein Descriptions', 'Overflow Protein Descriptions'])
 		if normalization == "ownbasal":
 			#for normalizing to basal
 			def basalNorm(x):
@@ -1016,7 +1058,7 @@ def correlationToSelf(inds, time_points, second_time_points, cell_lines, name, d
 				# mut.style.apply(color_groups, axis = 1).to_excel(writer, sheet_name = str(cellLine)+'-T', engine = 'openpyxl')
 				# corrs.append(corr)
 
-				mut = mut.set_index(["peptide-phosphosite",'Master Protein Descriptions', 'Gene Name'])
+				mut = mut.set_index(["peptide-phosphosite",'Master Protein Descriptions','Overflow Protein Descriptions', 'Gene Name'])
 				trajs.append(mut)
 
 				# corr['Gene Name'] = mut['Gene Name']
@@ -1027,6 +1069,9 @@ def correlationToSelf(inds, time_points, second_time_points, cell_lines, name, d
 				# corr.style.apply(color_groups_only, axis = 0).to_excel(writer, sheet_name = str(cellLine)+'-C', engine = 'openpyxl')
 				# break
 				# fullCorr.style.apply(color_groups_only, axis = 0).to_excel(writer, sheet_name = str(mutName)+'-C', engine = 'openpyxl')
+
+			if not display:
+				plt.close()
 
 	if saveFile:
 		with pd.ExcelWriter("{}{} C.xlsx".format(fileLocation, saveTitle)) as writer:
@@ -1039,7 +1084,7 @@ def correlationToSelf(inds, time_points, second_time_points, cell_lines, name, d
 	else:
 		looper()
 
-def correlationToReferenceDiagonal(ints, time_points, second_time_points, cell_lines, name='', display = True, saveFile = False, saveFig = False, fileLocation = '', normalization = 'refbasal', colors = []):
+def correlationToReferenceDiagonal(ints, time_points, second_time_points, cell_lines, name='', display = True, saveFile = False, saveFig = False, fileLocation = '', normalization = 'refbasal', colors = [], bins = None, kde = False):
 	'''For each cell line, computes the correlation of each peptide's trajectory to the corresponding reference peptide trajectory.
 
 	Parameters:
@@ -1053,6 +1098,9 @@ def correlationToReferenceDiagonal(ints, time_points, second_time_points, cell_l
 		saveFig (bool): whether to save figs
 		fileLocation (str): location to save to
 		normalization (str): normalization scheme, either ownbasal, reftime, or refbasal
+		colors (list): colors to use for cell lines
+		bins (int): number of histograms to make
+		kde (bool): whether to plot a gaussian kernel density estimate or the raw histogram (https://seaborn.pydata.org/generated/seaborn.distplot.html)
 
 	Notes:
 		Computes the Pearson Coefficient (R) between two peptide trajectories over time.
@@ -1107,7 +1155,7 @@ def correlationToReferenceDiagonal(ints, time_points, second_time_points, cell_l
 	else:
 		title = name+" "
 		saveTitle = name+" "
-	title += "{} to " + str(referenceName) + " ({} normalized) corr".format(normalization)
+	title += "Diagonal Correlation to " + str(referenceName) + " ({} normalized) corr".format(normalization)
 	saveTitle += 'diagonal correlation to {} ({} normalized)'.format(referenceName, normalization)
 
 	#iterates through cell lines, isolating the correct columns in the df and then calculating the correlation matrix
@@ -1120,18 +1168,41 @@ def correlationToReferenceDiagonal(ints, time_points, second_time_points, cell_l
 
 			if i == 0:
 				fullCorr = diagonal_corr(mut, reference, mutName)
-				sns.distplot(fullCorr.iloc[:,-1], hist = False, color = colors[i])
+				if kde:
+					ax = sns.distplot(fullCorr.iloc[:,-1], hist = False, kde = True, color = colors[i], label = cell_lines[i], bins = bins)
+					ax.set_title(title)
 			else:
 				corr = diagonal_corr(mut, reference, mutName)
-				fullCorr = pd.merge(fullCorr,corr,how="outer",on=["peptide-phosphosite","Master Protein Descriptions"])
-				sns.distplot(corr.iloc[:,-1], hist = False, color = colors[i])
+				fullCorr = pd.merge(fullCorr,corr,how="outer",on=["peptide-phosphosite","Master Protein Descriptions",'Overflow Protein Descriptions'])
+				if kde:
+					sns.distplot(corr.iloc[:,-1], hist = False, kde = True, color = colors[i], label = cell_lines[i], bins = bins)
+					ax.set_xlabel('Pearson R Coefficient')
+					ax.set_ylabel('KDE for Number of Peptides')
+
+			if not kde:
+				hist, bin_edges = np.histogram(fullCorr.iloc[:,-1].dropna().values, bins = bins)
+				loc = [(bin_edges[i]+bin_edges[i-1])/2 for i in range(1,len(bin_edges))]
+				plt.plot(loc,hist, color = colors[i])
+				plt.title(title)
+				plt.xlabel('Pearson R Coefficient')
+				plt.ylabel('Number of Peptides')
 			
-			# sns.distplot(fullCorr.iloc[:,-1], kde = False, color = colors[i])
-		plt.show()
+		if display:
+			plt.show()
+
+		if saveFig:
+			print('writing correlation plot')
+			plt.savefig(fileLocation+title+'.png')
+			plt.close()
 		
-		descriptions = fullCorr['Master Protein Descriptions'].values
-		fullCorr['Gene Name'] = [re.split("( OS=)",each)[0] for each in descriptions]
-		fullCorr = fullCorr.set_index(["peptide-phosphosite",'Master Protein Descriptions', 'Gene Name'])
+		if saveFile:
+			descriptions = fullCorr['Master Protein Descriptions'].values
+			fullCorr['Gene Name'] = [re.split("( OS=)",each)[0] for each in descriptions]
+			fullCorr = fullCorr.set_index(["peptide-phosphosite",'Master Protein Descriptions','Overflow Protein Descriptions', 'Gene Name'])
+			fullCorr.to_excel(writer)
+
+		if not display:
+			plt.close()
 		# melted = pd.melt(fullCorr, id_vars=["peptide-phosphosite",'Master Protein Descriptions', 'Gene Name'])
 
 		# ax = sns.barplot(x = 'peptide-phosphosite', y = 'value', hue = 'variable', data = melted, ci = None)
@@ -1429,9 +1500,9 @@ def volcano(intersections, n_replicates, timePoints, cellLines, cutoff, enrichme
 					selected_df = selected_df.rename(columns={'p-value':'{}-{} p'.format(cur_cell, cur_time),
 															'log2FC':'{}-{} L2FC'.format(cur_cell, cur_time)})
 					if full_df.empty:
-						full_df = selected_df[['peptide-phosphosite', 'Master Protein Descriptions', 'Name', '{}-{} L2FC'.format(cur_cell, cur_time), '{}-{} p'.format(cur_cell, cur_time)]]
+						full_df = selected_df[['peptide-phosphosite', 'Master Protein Descriptions', 'Overflow Protein Descriptions','Name', '{}-{} L2FC'.format(cur_cell, cur_time), '{}-{} p'.format(cur_cell, cur_time)]]
 					else:
-						full_df = pd.merge(full_df,selected_df,how="outer",on=["peptide-phosphosite","Master Protein Descriptions", "Name"])
+						full_df = pd.merge(full_df,selected_df,how="outer",on=["peptide-phosphosite","Master Protein Descriptions", 'Overflow Protein Descriptions' ,"Name"])
 						
 					#sorts by p value
 					volcano_df.sort_values(by='p-value', ascending=True, inplace = True)
@@ -1449,8 +1520,12 @@ def volcano(intersections, n_replicates, timePoints, cellLines, cutoff, enrichme
 					plt.title("{} volcano for {}-{}\nreference: {}\np: {}, fc: {}".format(name, cellLines[i_cell],timePoints[i_point],referenceName,cutoff, enrichment))
 					if display:
 						plt.show()
-					else:
+					
+					if saveFig:
 						plt.savefig(fileLocation+"{} [{}][{}][{}] volcano for {}-{}.png".format(name, referenceName, cutoff, enrichment,cellLines[i_cell],timePoints[i_point]))
+						plt.close()
+
+					if not display:
 						plt.close()
 
 				i_point+=1
@@ -1464,331 +1539,6 @@ def volcano(intersections, n_replicates, timePoints, cellLines, cutoff, enrichme
 			full_df.style.apply(hl, axis = None).to_excel(writer, sheet_name = 'Master', engine = 'openpyxl')
 	else:
 		looper()
-
-# def correlationToReference(ints, time_points, cell_lines, name, display, saveFile, saveFig, fileLocation, colors, normalization):
-# 	normalizedInts = []
-
-# 	#NORMALIZATION
-# 	for fullInt in ints:
-# 		if normalization == "ownbasal":
-# 			#for normalizing to basal
-# 			def basalNorm(x):
-# 				line = x.name.split("-")[0]
-# 				return np.log2(x.div(fullInt[line+"-"+str(time_points[0])]))
-
-# 			fullInt = fullInt.apply(basalNorm,axis=0)
-# 		elif normalization == "reftime":
-# 			#for normalizing to all reference timepoints
-# 			def timeNorm(x):
-# 				time = x.name.split("-")[1]
-# 				return np.log2(x.div(fullInt[str(cell_lines[-1])+"-"+time]))
-
-# 			fullInt = fullInt.apply(timeNorm,axis=0)
-# 		elif normalization == "refbsal":
-# 			#normalizes to unstimulated reference
-# 			fullInt = np.log2(fullInt.div(fullInt[str(cell_lines[-1])+"-"+str(time_points[0])], axis = 0))
-# 		normalizedInts.append(fullInt)
-
-
-# 	#CORRELATION CALCULATION
-# 	def custom_corr(one,two):
-# 		'''
-# 		Computes correlation matrix between two matrices element-wise.
-
-# 		Notes:
-# 			Modified from https://github.com/pandas-dev/pandas/blob/v0.25.1/pandas/core/frame.py#L7451-L7534
-		
-# 		'''
-
-# 		#gets peptide trajectory values
-# 		trj1 = one.values
-# 		trj2 = two.values
-
-# 		#instantiates new df
-# 		correl = np.empty((len(one), len(one)), dtype=float)
-
-# 		for i, ac in enumerate(trj1):
-# 			for j, bc in enumerate(trj2):
-
-# 				#only calculates half of the triangle
-# 				if i > j:
-# 					continue
-
-# 				#value will be pearson coefficient between the two trajectory vectors
-# 				c = pearsonr(ac,bc)[0]
-# 				correl[i,j] = c
-# 				correl[j,i] = c
-
-# 		#builds a new df to store the r values
-# 		return pd.DataFrame(correl,index=one.index, columns = one.index)
-
-
-# 	sns.set(style="white")
-
-
-# 	def clustermap(corr,cellLine1,cellLine2,title):
-# 		#modified from https://seaborn.pydata.org/examples/many_pairwise_correlations.html
-
-# 		#generate a mask for the upper triangle
-# 		# mask = np.zeros_like(corr, dtype=np.bool)
-# 		# mask[np.triu_indices_from(mask)] = True
-
-# 		#compute linkage via scipy (matrix is symmetric, so row and column linkage is the same)
-# 		correlations_array = np.asarray(corr)
-# 		row_linkage = hierarchy.linkage(distance.pdist(correlations_array), method='average')
-# 		col_linkage = hierarchy.linkage(distance.pdist(np.transpose(correlations_array)), method='average')
-
-# 		#draw the clustermap. cg is ClusterGrid object returned by seaborn
-# 		cg = sns.clustermap(corr, row_linkage=row_linkage, col_linkage=col_linkage, cmap = 'bwr', vmax = 1, center = 0,
-# 		            xticklabels = False, yticklabels = False)
-
-# 		#adds labels to axes of heatmap object
-# 		cg.ax_heatmap.set_xlabel(str(cellLine1))
-# 		cg.ax_heatmap.set_ylabel(str(cellLine2))
-# 		#adds title to overall figure (can't just do cg.ax_heatmap.set_title() because then cluster linkages obscure title)
-# 		cg.fig.suptitle(title)
-# 		# plt.title(title)
-# 		return cg, row_linkage
-
-# 	referenceName = cell_lines[-1]
-# 	title = ""
-# 	if normalization == "ownbasal":
-# 		title = "{} to " + str(referenceName) + " correlation of peptides (own basal normalized)"
-# 	elif normalization == "reftime":
-# 		title = "{} to " + str(referenceName) + " correlation of peptides ({}-{} time point normalized)".format(cell_lines[-1], time_points[0])
-# 	elif normalization == "refbsal":
-# 		title = "{} to " + str(referenceName) + " correlation of peptides ({} basal normalized)".format(cell_lines[-1])
-
-# 	total = pd.DataFrame()
-
-# 	#iterates through cell lines, isolating the correct columns in the df and then calculating the correlation matrix
-# 	# with pd.ExcelWriter("correlation/reference correlation/Special Comparison for Mutants "+title[3]+".xlsx") as writer:
-# 	for i in range(len(normalizedInts)):
-# 		mut = normalizedInts[i].iloc[:,range(len(time_points))]
-# 		reference = normalizedInts[i].iloc[:,range(len(time_points),len(time_points)*2)]
-# 		mutName = cell_lines[i]
-# 		fullCorr = custom_corr(mut,reference)
-# 		cg, linkage = clustermap(fullCorr,mutName,referenceName,title.format(mutName))
-# 		plt.show()
-# 		# sys.exit(0)
-# 		# plt.savefig("correlation/reference correlation/"+title.format(mutName)+".png")
-# 		# plt.close()
-
-# 		a, excelData, total = splitCluster(mut, linkage, total, mutName, title, "correlation/autocorrelation/")
-# 		# excelData, total = splitClusterReference(mut, reference, linkage, total, mutName, title, "correlation/reference correlation/")
-# 			# excelData.to_excel(writer, sheet_name = str(mutName))
-
-# def correlationToSelf(inds, time_points, second_time_points, cell_lines, name, display, saveFile, saveFig, fileLocation, colors, normalization):
-# 	#dictionary for converting mixed time points to seconds
-# 	keys = [str(each) for each in time_points]
-# 	values = [int(each) for each in second_time_points]
-# 	conversion = dict(zip(keys, values))
-
-# 	normalizedInds = []
-
-# 	#NORMALIZATION
-# 	for fullInt in inds:
-# 		fullInt = fullInt.set_index(["peptide-phosphosite",'Master Protein Descriptions'])
-# 		if normalization == "ownbasal":
-# 			#for normalizing to basal
-# 			def basalNorm(x):
-# 				line = x.name.split("-")[0]
-# 				return np.log2(x.div(fullInt[line+"-"+str(time_points[0])]))
-# 			fullInt = fullInt.apply(basalNorm,axis=0)
-# 		else:
-# 			print("WARNING: isolated cell lines cannot be normalized to wt without losing peptide information")
-# 			print("Normalize using 'ownbasal'")
-# 			sys.exit(0)
-# 		normalizedInds.append(fullInt)
-
-# 	sns.set(style="white")
-
-# 	def clustermap(corr,cellLine1,cellLine2,title):
-# 		#modified from https://seaborn.pydata.org/examples/many_pairwise_correlations.html
-
-# 		#generate a mask for the upper triangle
-# 		# mask = np.zeros_like(corr, dtype=np.bool)
-# 		# mask[np.triu_indices_from(mask)] = True
-
-# 		#compute linkage via scipy (matrix is symmetric, so row and column linkage is the same)
-# 		correlations_array = np.asarray(corr)
-# 		row_linkage = hierarchy.linkage(distance.pdist(correlations_array), method='average')
-
-
-# 		#draw the clustermap. cg is ClusterGrid object returned by seaborn
-# 		cg = sns.clustermap(corr, row_linkage=row_linkage, col_linkage=row_linkage, cmap = 'bwr', vmax = 1, center = 0,
-# 		            xticklabels = False, yticklabels = False)
-
-# 		#adds labels to axes of heatmap object
-# 		cg.ax_heatmap.set_xlabel(str(cellLine1))
-# 		cg.ax_heatmap.set_ylabel(str(cellLine2))
-# 		#adds title to overall figure (can't just do cg.ax_heatmap.set_title() because then cluster linkages obscure title)
-# 		cg.fig.suptitle(title)
-# 		return cg, row_linkage
-
-# 	title = ""
-# 	if normalization == "cellBasal":
-# 		title = "{} separate autocorrelation of peptides (mutant basal normalized)"
-# 	elif normalization == "wtTime":
-# 		title = "{} separate autocorrelation of peptides (wt time point normalized)"
-# 	elif normalization == "wtBasal":
-# 		title = "{} separate autocorrelation of peptides (wt basal normalized)"
-
-# 	total = pd.DataFrame()
-
-# 	# with pd.ExcelWriter("correlation/autocorrelation/Special Comparison for "+title[3:]+".xlsx") as writer:
-# 	for i in range(len(normalizedInds)):
-# 		mut = normalizedInds[i]
-# 		corr = mut.transpose().corr()
-# 		cellLine = cell_lines[i]
-	 
-# 		cg, linkage = clustermap(corr,cellLine,cellLine,title.format(cellLine))
-# 		plt.show()
-# 		# plt.savefig("correlation/autocorrelation/"+title.format(cellLine)+".png")
-# 		# plt.close()
-
-# 		a, excelData, total = splitCluster(mut, linkage, total, cellLine, title, "correlation/autocorrelation/")
-# 			# excelData.to_excel(writer, sheet_name = str(cellLine))
-
-# 	# print(total)
-# 	ax = sns.lineplot(x = "Time Point", y = "Log2 FC", data = total, hue = "Cell Line", palette = colors, dashes = True, markers = True)
-# 	plt.show()
-# 	# plt.savefig("correlation/autocorrelation/"+title[3:]+".png")
-# 	# plt.close()
-
-
-# 	# #splits protein description with regular expression, then saves df to file
-# 	# fullCorr = fullCorr.reset_index()
-# 	# descriptions = fullCorr["Master Protein Descriptions"].values
-# 	# fullCorr["Master Protein Descriptions"] = [re.split("( OS=)",each)[0] for each in descriptions]
-# 	# if normalizeToBasal:
-# 	# 	fullCorr.to_csv("correlation/basal normalized Pairwise Correlation of Individual Peptide Trajectories between Mutant and WT.csv")
-# 	# else:
-# 	# 	fullCorr.to_csv("correlation/wt normalized Pairwise Correlation of Individual Peptide Trajectories between Mutant and WT.csv")
-
-# #CORRELATION CALCULATION
-# def custom_corr(one,two):
-# 	'''
-# 	Computes correlation matrix between two matrices element-wise.
-
-# 	Notes:
-# 		Modified from https://github.com/pandas-dev/pandas/blob/v0.25.1/pandas/core/frame.py#L7451-L7534
-	
-# 	'''
-
-# 	#gets peptide trajectory values
-# 	trj1 = one.values
-# 	trj2 = two.values
-
-# 	#instantiates new df
-# 	correl = np.empty((len(one), len(one)), dtype=float)
-
-# 	for i, ac in enumerate(trj1):
-# 		for j, bc in enumerate(trj2):
-
-# 			#only calculates half of the triangle
-# 			if i > j:
-# 				continue
-
-# 			#value will be pearson coefficient between the two trajectory vectors
-# 			c = pearsonr(ac,bc)[0]
-# 			correl[i,j] = c
-# 			correl[j,i] = c
-
-# 	#builds a new df to store the r values
-# 	return pd.DataFrame(correl,index=one.index, columns = one.index)
-
-# def clustermap(corr, mut, cellLine1, cellLine2, title, total, fileLocation):
-# 	#modified from https://seaborn.pydata.org/examples/many_pairwise_correlations.html
-
-# 	#generate a mask for the upper triangle
-# 	# mask = np.zeros_like(corr, dtype=np.bool)
-# 	# mask[np.triu_indices_from(mask)] = True
-
-# 	#compute linkage via scipy (matrix is symmetric, so row and column linkage is the same)
-# 	correlations_array = np.asarray(corr)
-# 	row_linkage = hierarchy.linkage(distance.pdist(correlations_array), method='average')
-# 	col_linkage = hierarchy.linkage(distance.pdist(np.transpose(correlations_array)), method='average')
-
-# 	melted, mut, total = splitCluster(mut.copy(), row_linkage, total, cellLine1, title, "correlation/reference correlation/", display = True)
-# 	mut = mut.set_index(["peptide-phosphosite", "Master Protein Descriptions"])
-
-# 	#draw the clustermap. cg is ClusterGrid object returned by seaborn
-# 	cg = sns.clustermap(corr, row_linkage=row_linkage, col_linkage = col_linkage, cmap = 'bwr', center = 0,
-# 				norm = matplotlib.colors.Normalize(vmin=smallest, vmax=biggest), row_colors = mut["Group"], xticklabels = False, yticklabels = False)
-
-# 	mut = mut.iloc[cg.dendrogram_row.reordered_ind]
-
-# 	#adds labels to axes of heatmap object
-# 	cg.ax_heatmap.set_xlabel(str(cellLine1))
-# 	cg.ax_heatmap.set_ylabel(str(cellLine2))
-# 	#adds title to overall figure (can't just do cg.ax_heatmap.set_title() because then cluster linkages obscure title)
-# 	cg.fig.suptitle(title)
-# 	# plt.show()
-
-# 	return mut, total
-
-# def simple_corr(ints, cell_lines, time_points, second_time_points, normalization):
-# 	normalizedInts = []
-# 	sns.set(style='white')
-
-# 	#NORMALIZATION
-# 	biggest = -1*float('inf')
-# 	smallest = float('inf')
-# 	for fullInt in ints:
-# 		if normalization == "ownbasal":
-# 			#for normalizing to basal
-# 			def basalNorm(x):
-# 				line = x.name.split("-")[0]
-# 				return np.log2(x.div(fullInt[line+"-"+str(time_points[0])]))
-
-# 			fullInt = fullInt.apply(basalNorm,axis=0)
-# 		elif normalization == "reftime":
-# 			#for normalizing to all reference timepoints
-# 			def timeNorm(x):
-# 				time = x.name.split("-")[1]
-# 				return np.log2(x.div(fullInt[str(cell_lines[-1])+"-"+time]))
-
-# 			fullInt = fullInt.apply(timeNorm,axis=0)
-# 		elif normalization == "refebasal":
-# 			#normalizes to unstimulated reference
-# 			fullInt = np.log2(fullInt.div(fullInt[str(cell_lines[-1])+"-"+str(time_points[0])], axis = 0))
-
-# 		big = fullInt.max().max()
-# 		biggest = max(big, biggest)
-# 		small = fullInt.min().min()
-# 		smallest = min(small, smallest)
-# 		normalizedInts.append(fullInt)
-
-# 	referenceName = cell_lines[-1]
-# 	title = ""
-# 	if normalization == "ownbasal":
-# 		title = "{} to " + str(referenceName) + " (mutant basal normalized) corr"
-# 	elif normalization == "reftime":
-# 		title = "{} to " + str(referenceName) + " (reference time point normalized) corr"
-# 	elif normalization == "refbasal":
-# 		title = "{} to " + str(referenceName) + " (reference basal normalized) corr"
-
-# 	total = pd.DataFrame()
-
-# 	#iterates through cell lines, isolating the correct columns in the df and then calculating the correlation matrix
-# 	# with pd.ExcelWriter("correlation/reference correlation/"+title[11:]+".xlsx") as writer:
-# 	for i in range(len(normalizedInts)):
-# 		mut = normalizedInts[i].iloc[:,range(len(time_points))]
-# 		reference = normalizedInts[i].iloc[:,range(len(time_points),len(time_points)*2)]
-# 		mutName = cell_lines[i]
-# 		fullCorr = custom_corr(mut,reference)
-# 		mut, total = clustermap(fullCorr,mut,mutName,referenceName,title.format(mutName), total, '')
-# 		# plt.savefig("correlation/reference correlation/"+title.format(mutName)+".png")
-# 		# plt.close()
-# 		plt.show()
-
-# 		mut = mut.reset_index()
-# 		mut.drop(['Sizes'], axis = 1, inplace = True)
-# 		descriptions = mut["Master Protein Descriptions"].values
-# 		mut["Gene Name"] = [re.split("( OS=)",each)[0] for each in descriptions]
-# 		# mut.to_excel(writer, sheet_name = str(mutName))
-
 
 #Stuff from bioinfokit ;)
 class general():

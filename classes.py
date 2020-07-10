@@ -339,7 +339,7 @@ class Experiment:
             phenotypicType (str): identifier for phenotypic measurement type
 
         """
-        self.phenotypicMeasurements[phenotypicType] = PhenotypicMeasurement(locations, phenotypicType, self.cellLines)
+        self.phenotypicMeasurements[phenotypicType] = PhenotypicMeasurement(locations, phenotypicType, self.cellLines, self.fileLocation)
 
     def combineReplicates(self, n_cutoff=0, std_cutoff=float('inf')):
         """Combines experimental replicates into a list of dfs and performs fullIntersection and referenceIntersections.
@@ -411,6 +411,21 @@ class Experiment:
 
         print("New REFERENCE set to {}".format(line))
 
+    def setOutputLocation(self, location):
+        '''Updates output file location.
+
+        Args:
+            location (str): new output file location
+        '''
+        self.fileLocation = location
+
+        for each in self.experimentalReplicates:
+            each.fileLocation = location
+        for each in self.phenotypicMeasurements.values():
+            each.fileLocation = location
+
+        print("New output set to {}".format(location))
+
     def log2Comparison(self, keyword=None, threshold=0, normalizeToBasal=False, tail="both", title=None):
         """Compares and graphs percentage of peptides in individual others that show a specified log2 fold difference compared to reference.
 
@@ -481,12 +496,14 @@ class Experiment:
 
         return comparison, originalSizes
 
-    def heatmap(self, name="", display=True, fileLocation="", fullscreen=False, normalization='refbasal'):
+    def heatmap(self, name="", display=True, saveFile = False, saveFig = False, fileLocation="", fullscreen=False, normalization='refbasal'):
         """Plots a heatmap comparing all cell lines at once.
 
         Args:
             name (str): plot title
-            display (bool): whether to display a graph or save it to file
+            display (bool): whether to display a graph
+            saveFile (bool): whether to save data to Excel files
+            saveFig (bool): whether to save figs
             fileLocation (str): file location to save to
             fullscreen (bool): whether to display graph fullscreen
             normalization (str): normalization scheme to use, default refbasal but can use refbasal, reftime, ownbasal
@@ -494,17 +511,19 @@ class Experiment:
         """
         if fileLocation == '':
             fileLocation = self.fileLocation
-        try:
-            modules.heatmap(self.experimentFullIntersection.copy(), self.cellLines, self.timePoints, name, display, fileLocation, fullscreen, normalization)
-        except AttributeError:
-            print("ERROR: Combine replicates first.")
+        # try:
+        modules.heatmap(self.experimentFullIntersection.copy(), self.cellLines, self.timePoints, name, display, saveFile, saveFig, fileLocation, fullscreen, normalization)
+        # except AttributeError:
+        #     print("ERROR: Combine replicates first.")
 
-    def heatmapToReference(self, name="", display=True, fileLocation="", fullscreen = False, normalization='refbasal'):
+    def heatmapToReference(self, name="", display=True, saveFile = False, saveFig = False, fileLocation="", fullscreen = False, normalization='refbasal'):
         """Plots multiple heatmaps comparing cell lines to reference.
 
         Args:
             name (str): plot title
-            display (bool): whether to display a graph or save it to file
+            display (bool): whether to display a graph
+            saveFile (bool): whether to save data to Excel files
+            saveFig (bool): whether to save figs
             fileLocation (str): file location to save to
             fullscreen (bool): whether to display graph fullscreen
             normalization (str): normalization scheme to use, default refbasal but can use refbasal, reftime, ownbasal
@@ -513,16 +532,18 @@ class Experiment:
         if fileLocation == '':
             fileLocation = self.fileLocation
         try:
-            modules.heatmapToReference(self.experimentReferenceIntersections.copy(), self.cellLines, self.timePoints, name, display, fileLocation, fullscreen, normalization)
+            modules.heatmapToReference(self.experimentReferenceIntersections.copy(), self.cellLines, self.timePoints, name, display, saveFile, saveFig, fileLocation, fullscreen, normalization)
         except AttributeError:
             print("ERROR: Combine replicates first.")
 
-    def pcaToReference(self, name="", display=True, fileLocation="", fullscreen=False):
+    def pcaToReference(self, name="", display=True, saveFile = False, saveFig = False, fileLocation="", fullscreen=False):
         """Plots separate PCAs comparing each others to reference intersection individually.
 
         Args:
             name (str): plot title
-            display (bool): whether to display graph or save it to file
+            display (bool): whether to display graph
+            saveFile (bool): whether to save PCA loadings to Excel files
+            saveFig (bool): whether to save figs
             fileLocation (str): file location to save to
             fullscreen (bool): whether to display graph fullscreen
 
@@ -533,17 +554,19 @@ class Experiment:
         """
         if fileLocation == '':
             fileLocation = self.fileLocation
-        try:
-            return modules.pcaToReference(self.experimentReferenceIntersections.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, fileLocation, fullscreen, self.colors)
-        except AttributeError:
-            print("ERROR: Combine replicates first.")
+        # try:
+        return modules.pcaToReference(self.experimentReferenceIntersections.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, saveFile, saveFig, fileLocation, fullscreen, self.colors)
+        # except AttributeError:
+        #     print("ERROR: Combine replicates first.")
 
-    def pca(self, name="", display=True, fileLocation="", fullscreen=False):
+    def pca(self, name="", display=True, saveFile = False, saveFig = False, fileLocation="", fullscreen=False):
         """Plots one PCA comparing all others and reference at once.
 
         Args:
             name (str): plot title
-            display (bool): whether to display graph or save it to file
+            display (bool): whether to display graph
+            saveFile (bool): whether to save PCA loadings to Excel files
+            saveFig (bool): whether to save figs
             fileLocation (str): file location to save to
             fullscreen (bool): whether to display graph fullscreen
 
@@ -551,23 +574,9 @@ class Experiment:
         if fileLocation == '':
             fileLocation = self.fileLocation
         try:
-            return modules.pca(self.experimentFullIntersection.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, fileLocation, fullscreen, self.colors)
+            return modules.pca(self.experimentFullIntersection.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, saveFile, saveFig, fileLocation, fullscreen, self.colors)
         except AttributeError:
             print("ERROR: Combine replicates first.")
-
-    def loadings(self, name="", display=True, fileLocation="", fullscreen=False):
-        '''Plots and analyzes PCA loadings.
-
-        Args:
-            name (str): plot title
-            display (bool): whether to display graph or save it to file
-            fileLocation (str): file location to save to
-            fullscreen (bool): whether to display graph fullscreen       
-        '''
-        if fileLocation == '':
-            fileLocation = self.fileLocation
-        pcas = self.pcaToReference()
-        print("TODO")
 
     def volcano(self, cutoff = 0.05, enrichment = 1, label = False, name="", display=False, saveFile = False, saveFig = False, fileLocation = "", colors = ("#E10600FF","#00239CFF")):
         """Plots a volcano plot for each time point for each cell line. Also saves an Excel file with p-values and L2FC.
@@ -578,7 +587,9 @@ class Experiment:
             name (str): experiment identifier to include in all plots
             display (bool): whether to display all plots, default is False
             saveFile (bool): whether to save Excel file, default is False
+            saveFig (bool): whether to save plot as a PNG, default is False
             fileLocation (str): directory and file prefix for Excel file
+            colors (list): colors for up and downregulated peptides
 
         Examples:
             exp.volcano(display=True)
@@ -650,7 +661,7 @@ class Experiment:
             fileLocation = self.fileLocation
         modules.correlationToSelf(self.combinedReplicates.copy(), self.timePoints, self.secondTimePoints, self.cellLines, name, display, saveFile, saveFig, fileLocation, normalization)
 
-    def correlationToReferenceDiagonal(self, name = '', display = True, saveFile = False, saveFig = False, fileLocation = '', normalization = 'refbasal'):
+    def correlationToReferenceDiagonal(self, name = '', display = True, saveFile = False, saveFig = False, fileLocation = '', normalization = 'refbasal', bins = None, kde = False):
         '''For each cell line, computes the correlation of each peptide's trajectory to the corresponding reference peptide trajectory.
 
         Args:
@@ -660,8 +671,12 @@ class Experiment:
             saveFig (bool): whether to save figs
             fileLocation (str): location to save to
             normalization (str): normalization scheme, either ownbasal, reftime, or refbasal
+            bins (int): number of histogram bins to use
+            kde (bool): whether to plot gaussian kernal density estimate or not (https://seaborn.pydata.org/generated/seaborn.distplot.html)
 
         Notes:
+            WARNING: kde plots a smoothed, more interpretable histogram where the y axis is no longer the true number of peptides in the histogram. It's unclear whether this plot is an accurate reflection of trends between cell lines.
+
             Computes the Pearson Coefficient (R) between two peptide trajectories over time.
                 -1 is a negative linear relationship
                 0 is no linear relationship
@@ -676,7 +691,7 @@ class Experiment:
         '''
         if fileLocation == '':
             fileLocation = self.fileLocation
-        modules.correlationToReferenceDiagonal(self.experimentReferenceIntersections.copy(), self.timePoints, self.secondTimePoints, self.cellLines, name, display, saveFile, saveFig, fileLocation, normalization, self.colors)
+        modules.correlationToReferenceDiagonal(self.experimentReferenceIntersections.copy(), self.timePoints, self.secondTimePoints, self.cellLines, name, display, saveFile, saveFig, fileLocation, normalization, self.colors, bins, kde)
 
     def groupPlot(self, key = None, relativeToReference = False, display = True, name = '', fileLocation = ''):
         '''Plots one type of phenotypic data for the experiment, including std. dev. error bars and letter-based groups based on Tukey's HSD.
@@ -794,6 +809,20 @@ class ExperimentalReplicate:
                 self.cellData[i] = pd.read_csv(locations[i], skiprows=0)
                 #names columns to pep.-phos., MPD, and then cellLine-timePoint
                 self.cellData[i].columns = ['peptide-phosphosite', 'Master Protein Descriptions']+['{}-{}'.format(self.cellLines[i],t) for t in self.timePoints]
+
+                #splits descriptions if they contain more than one peptide
+                descriptions = self.cellData[i]['Master Protein Descriptions'].str.split(';',1).values
+                master = [0]*len(descriptions)
+                secondary = [0]*len(descriptions)
+                for j in range(len(descriptions)):
+                    master[j] = descriptions[j][0]
+                    try:
+                        secondary[j] = descriptions[j][1]
+                    except:
+                        secondary[j] = ''
+                self.cellData[i]['Master Protein Descriptions'] = master
+                self.cellData[i].insert(2, 'Overflow Protein Descriptions', secondary, True)
+
                 if self.caseInsensitive:
                     self.cellData[i]['peptide-phosphosite'] = self.cellData[i][
                         "peptide-phosphosite"].str.upper()
@@ -910,7 +939,7 @@ class ExperimentalReplicate:
                 self.cellData[i],
                 technicalReplicate.cellData[i],
                 how="outer",
-                on=["peptide-phosphosite", "Master Protein Descriptions"])
+                on=["peptide-phosphosite", "Master Protein Descriptions", "Overflow Protein Descriptions"])
 
             for each in self.timePoints:
                 cellLine = self.cellLines[i]
@@ -954,7 +983,7 @@ class ExperimentalReplicate:
         originalSizes = []
 
         reference = self.cellData[-1]
-        reference = reference.set_index(["peptide-phosphosite", "Master Protein Descriptions"])
+        reference = reference.set_index(["peptide-phosphosite", "Master Protein Descriptions", "Overflow Protein Descriptions"])
         if normalizeToBasal:
             reference = reference.div([reference.iloc[:, 0]] * len(self.timePoints), axis='columns')
 
@@ -975,16 +1004,16 @@ class ExperimentalReplicate:
                         loopCellData = self.cellData[i][lowerData.str.contains(each.lower())]
 
                         tempCellData = pd.concat([tempCellData, loopCellData],join="outer")
-                        tempCellData = tempCellData.drop_duplicates(subset=["peptide-phosphosite","Master Protein Descriptions"])
+                        tempCellData = tempCellData.drop_duplicates(subset=["peptide-phosphosite","Master Protein Descriptions", "Overflow Protein Descriptions"])
 
                 else:
                     print("ERROR: Keyword must be either str, or list of str")
                     raise Exception
 
-                tempCellData = tempCellData.set_index(["peptide-phosphosite", "Master Protein Descriptions"])
+                tempCellData = tempCellData.set_index(["peptide-phosphosite", "Master Protein Descriptions", "Overflow Protein Descriptions"])
             else:
                 #set descriptions to index
-                tempCellData = self.cellData[i].set_index(["peptide-phosphosite", 'Master Protein Descriptions'])
+                tempCellData = self.cellData[i].set_index(["peptide-phosphosite", 'Master Protein Descriptions', 'Overflow Protein Descriptions'])
 
             #normalize others to basal level
             if normalizeToBasal:
@@ -1081,13 +1110,13 @@ class ExperimentalReplicate:
             trajectory = [True] * len(self.timePoints)
 
         reference = self.cellData[-1]
-        reference = reference.set_index(["peptide-phosphosite", "Master Protein Descriptions"])
+        reference = reference.set_index(["peptide-phosphosite", "Master Protein Descriptions", "Overflow Protein Descriptions"])
         if normalizeToBasal:
             reference = reference.div([reference.iloc[:, 0]] * len(self.timePoints), axis='columns')
 
         for i in range(len(self.cellData) - 1):
             #set descriptions to index
-            tempCellData = self.cellData[i].set_index(["peptide-phosphosite", 'Master Protein Descriptions'])
+            tempCellData = self.cellData[i].set_index(["peptide-phosphosite", 'Master Protein Descriptions', 'Overflow Protein Descriptions'])
 
             #normalize others to basal level
             if normalizeToBasal:
@@ -1146,12 +1175,14 @@ class ExperimentalReplicate:
 
         return others, originalSizes
 
-    def heatmap(self, name="", display=True, fileLocation="", fullscreen=False, normalization='refbasal'):
+    def heatmap(self, name="", display=True, saveFile = False, saveFig = False, fileLocation="", fullscreen=False, normalization='refbasal'):
         """Plots a heatmap comparing all cell lines at once.
 
         Args:
             name (str): plot title
-            display (bool): whether to display a graph or save it to file
+            display (bool): whether to display a graph
+            saveFile (bool): whether to save data to Excel files
+            saveFig (bool): whether to save figs
             fileLocation (str): file location to save to
             fullscreen (bool): whether to display graph fullscreen
             normalization (str): normalization scheme to use, default refbasal but can use refbasal, reftime, ownbasal
@@ -1159,14 +1190,16 @@ class ExperimentalReplicate:
         """
         if fileLocation == '':
             fileLocation = self.fileLocation
-        modules.heatmap(self.cellFullIntersection.copy(), self.cellLines, self.timePoints, name, display, fileLocation, fullscreen, normalization)
+        modules.heatmap(self.cellFullIntersection.copy(), self.cellLines, self.timePoints, name, display, saveFile, saveFig, fileLocation, fullscreen, normalization)
 
-    def heatmapToReference(self, name="", display=True, fileLocation="", fullscreen = False, normalization='refbasal'):
+    def heatmapToReference(self, name="", display=True, saveFile = False, saveFig = False, fileLocation="", fullscreen = False, normalization='refbasal'):
         """Plots multiple heatmaps comparing cell lines to reference.
 
         Args:
             name (str): plot title
-            display (bool): whether to display a graph or save it to file
+            display (bool): whether to display a graph
+            saveFile (bool): whether to save data to Excel files
+            saveFig (bool): whether to save figs
             fileLocation (str): file location to save to
             fullscreen (bool): whether to display graph fullscreen
             normalization (str): normalization scheme to use, default refbasal but can use refbasal, reftime, ownbasal
@@ -1174,14 +1207,16 @@ class ExperimentalReplicate:
         """
         if fileLocation == '':
             fileLocation = self.fileLocation
-        modules.heatmapToReference(self.cellReferenceIntersections.copy(), self.cellLines, self.timePoints, name, display, fileLocation, fullscreen, normalization)
+        modules.heatmapToReference(self.cellReferenceIntersections.copy(), self.cellLines, self.timePoints, name, display, saveFile, saveFig, fileLocation, fullscreen, normalization)
 
-    def pcaToReference(self, name="", display=True, fileLocation="", fullscreen=False):
+    def pcaToReference(self, name="", display=True, saveFile = False, saveFig = False, fileLocation="", fullscreen=False):
         """Plots separate PCAs comparing each others to reference intersection individually.
 
         Args:
             name (str): plot title
-            display (bool): whether to display graph or save it to file
+            display (bool): whether to display graph
+            saveFile (bool): whether to save PCA loadings to Excel files
+            saveFig (bool): whether to save figs
             fileLocation (str): file location to save to
             fullscreen (bool): whether to display graph fullscreen
 
@@ -1194,19 +1229,21 @@ class ExperimentalReplicate:
             fileLocation = self.fileLocation
         modules.pcaToReference(self.cellReferenceIntersections.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, fileLocation, fullscreen, self.colors)
 
-    def pca(self, name="", display=True, fileLocation="", fullscreen=False):
+    def pca(self, name="", display=True, saveFile = False, saveFig = False, fileLocation="", fullscreen=False):
         """Plots one PCA comparing all others and reference at once.
 
         Args:
             name (str): plot title
-            display (bool): whether to display graph or save it to file
+            display (bool): whether to display graph
+            saveFile (bool): whether to save PCA loadings to Excel files
+            saveFig (bool): whether to save figs
             fileLocation (str): file location to save to
             fullscreen (bool): whether to display graph fullscreen
 
         """
         if fileLocation == '':
             fileLocation = self.fileLocation
-        modules.pca(self.cellFullIntersection.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, fileLocation, fullscreen, self.colors)
+        modules.pca(self.cellFullIntersection.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, saveFile, saveFig, fileLocation, fullscreen, self.colors)
 
 class PhenotypicMeasurement:
     """Stores all replicates of one type of phenotypic measurement associated with the Experiment.
@@ -1216,11 +1253,13 @@ class PhenotypicMeasurement:
     phenotypicType = ""
     phenotypicData = None
     cellLines = []
+    fileLocation = ''
 
-    def __init__(self, locations, phenotypicType='Generic', cellLines = None):
+    def __init__(self, locations, phenotypicType='Generic', cellLines = None, fileLocation = ''):
         self.phenotypicType = phenotypicType
         self.cellLines = cellLines
         df = pd.DataFrame()
+        self.fileLocation = fileLocation
 
         #list of replicate locations to read in
         if type(locations) == list:
