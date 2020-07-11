@@ -5,15 +5,6 @@ import matplotlib.pyplot as plt
 
 
 #	#	DATA SETUP	#	#
-#list of file locations for replicates
-	#first list: BR1
-	#second list: BR2
-	#third list: BR3
-#all locations are in order of cell lines (2934,2935,2936,2937,2938,3126,3127,3138)
-#can be in different order as long as
-	#order is consistent across all replicates,
-	#order is consistent with cell_lines variable defined below,
-	#and WT IS LAST (my code assumes this when performing calculations)
 locations = [
 	["demo/input/ms/2934_2nM_BR1.csv",
 	"demo/input/ms/2935_2nM_BR1.csv",
@@ -67,6 +58,7 @@ exp = classes.Experiment(locations, cell_lines, time_points, second_time_points,
 exp.addTechnicalReplicate(technicalReplicate,1)
 exp.combineReplicates()
 exp.addPhenotypicMeasurement(phenotypicMeasurement, phenotypicType = 'Migration Rate')
+
 # print(exp)
 # exp.setReference('2934')
 # print(exp)
@@ -74,7 +66,7 @@ exp.addPhenotypicMeasurement(phenotypicMeasurement, phenotypicType = 'Migration 
 #	#	ANALYSIS	#	#
 # exp.heatmapToReference(normalization = 'ownbasal')
 # exp.heatmapToReference(normalization = 'reftime')
-exp.pcaToReference(display = False, saveFile = True)
+# exp.pcaToReference(display = False, saveFile = True)
 # exp.setReference('2934')
 # exp.pcaToReference()
 # plt.show()
@@ -83,13 +75,10 @@ exp.pcaToReference(display = False, saveFile = True)
 # exp.heatmap(display = False, saveFile = True)
 # exp.heatmapToReference(display = False, saveFig = True, normalization = 'reftime')
 # plt.show()
-
 # exp.pca(display=False, saveFile = True)
-
 # exp.heatmap(normalization = 'reftime')
 # exp.heatmap(normalization = 'refbasal')
 # exp.heatmap(normalization = 'ownbasal')
-
 # exp.simpleCorr()
 # exp.correlationToReference(display = True, saveFile = False)
 # exp.correlationToSelf(display=False, saveFile = True)
@@ -97,7 +86,6 @@ exp.pcaToReference(display = False, saveFile = True)
 # exp.setOutputLocation('/demo/output')
 # exp[0].pca()
 # plt.show()
-
 # exp.pca(display=False)
 # exp[0].pca(display=False)
 # exp.replicatePlot(display=False)

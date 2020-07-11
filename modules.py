@@ -446,7 +446,7 @@ def pcaToReference(cellData, cell_lines, time_points, time_points_seconds, name 
 	"""Plots separate PCAs comparing each others to reference individually.
 
 	Args:
-		intersection (list of df): full intersection of replicate data (all otherss and reference)
+		cellData (list of df): full intersection of replicate data (all otherss and reference)
 		cell_lines (list of int): cell lines in order
 		time_points (list of int): time points in order
 		time_points_seconds (list of int): time points in seconds in order
@@ -484,7 +484,7 @@ def pcaToReference(cellData, cell_lines, time_points, time_points_seconds, name 
 		pcas[i].fit(cell_data[i])
 		transformed[i] = pcas[i].transform(cell_data[i])
 		explained[i] = pcas[i].explained_variance_ratio_
-		
+		loadings[i] = pd.DataFrame(pcas[i].components_.T, columns = ['Loading 1', 'Loading 2'], index = cellData[i].index)
 
 	#plot each cell line individually
 	for i in range(len(pcas)):
@@ -521,8 +521,9 @@ def pcaToReference(cellData, cell_lines, time_points, time_points_seconds, name 
 			plt.close()
 
 	if saveFile:
-		print(cellData)
-		analyzeLoadings(cellData, cell_lines, [], [])
+		with pd.ExcelWriter("{}{} pcas to {}.xlsx".format(fileLocation, name, cell_lines[-1])) as writer:
+			for i in range(len(loadings)):
+				loadings[i].to_excel(writer, sheet_name = cell_lines[i])
 
 	return pcas
 

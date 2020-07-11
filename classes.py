@@ -554,10 +554,10 @@ class Experiment:
         """
         if fileLocation == '':
             fileLocation = self.fileLocation
-        # try:
-        return modules.pcaToReference(self.experimentReferenceIntersections.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, saveFile, saveFig, fileLocation, fullscreen, self.colors)
-        # except AttributeError:
-        #     print("ERROR: Combine replicates first.")
+        try:
+            return modules.pcaToReference(self.experimentReferenceIntersections.copy(), self.cellLines, self.timePoints, self.secondTimePoints, name, display, saveFile, saveFig, fileLocation, fullscreen, self.colors)
+        except AttributeError:
+            print("ERROR: Combine replicates first.")
 
     def pca(self, name="", display=True, saveFile = False, saveFig = False, fileLocation="", fullscreen=False):
         """Plots one PCA comparing all others and reference at once.
